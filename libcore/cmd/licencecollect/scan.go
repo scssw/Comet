@@ -81,6 +81,7 @@ func scanModuleLicenses(ctx context.Context, dir string) ([]string, error) {
 
 var licenseOverrides = map[string][]string{
 	"github.com/exclavenetwork/sing-juicity": {"GPL-3.0-or-later"}, // "either version 3 of the License, or (at your option) any later version"
+	"github.com/dgryski/go-idea":             {"CC0-1.0"},          // Public Domain derived from Colin Plumb
 }
 
 func overrideLicenses(ctx context.Context, modulePath string, scanned []string) []string {

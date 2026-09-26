@@ -150,13 +150,19 @@ func resolveLibrary(ctx context.Context, cacheDir, mainModuleDir string, depende
 		Name:            dependency.Path,
 		Website:         moduleWebsite(dependency.Path),
 	}
+	if override, hasOverride := licenseOverrides[dependency.Path]; hasOverride {
+		library.Licenses = override
+		return library, nil
+	}
 	dir, err := sourceDir(cacheDir, mainModuleDir, dependency)
 	if err != nil {
 		return Library{}, err
 	}
 	licenses, err := scanModuleLicenses(ctx, dir)
 	if err != nil {
-		return Library{}, E.Cause(err, "resolve ", dependency.Path)
+		log.WarnContext(ctx, "failed to scan license for ", dependency.Path, ": ", err)
+		library.Licenses = []string{"Unknown"}
+		return library, nil
 	}
 	library.Licenses = overrideLicenses(ctx, dependency.Path, licenses)
 	return library, nil
