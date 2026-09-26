@@ -64,6 +64,10 @@ jobs:
       - name: Generate about libraries metadata
         run: make aboutlibraries_go aboutlibraries_android
       - name: Build Android app
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS || 'comet123' }}
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME || 'comet' }}
+          ALIAS_PASS: ${{ secrets.ALIAS_PASS || 'comet123' }}
         run: make apk
       - uses: actions/upload-artifact@v7
         with:
