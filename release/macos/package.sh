@@ -66,8 +66,21 @@ require_arg() {
     fi
 }
 
-escape_for_sed() {
-    printf '%s' "$1" | sed -e 's/[\\&#]/\\&/g'
+PYTHON_BIN=""
+
+resolve_python() {
+    local candidate
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            if "$candidate" -c "import sys" >/dev/null 2>&1; then
+                PYTHON_BIN="$(command -v "$candidate")"
+                return
+            fi
+        fi
+    done
+
+    error "Missing required tool: python or python3"
+    exit 2
 }
 
 render_template() {
@@ -85,19 +98,23 @@ render_template() {
         exit 1
     fi
 
-    local -a sed_args=()
-    local placeholder
-    local value
-    local escaped_value
-    while [[ $# -gt 0 ]]; do
-        placeholder="$1"
-        value="$2"
-        escaped_value="$(escape_for_sed "$value")"
-        sed_args+=(-e "s#${placeholder}#${escaped_value}#g")
-        shift 2
-    done
+    "$PYTHON_BIN" - "$template_file" "$output_file" "$@" <<'PY'
+import pathlib
+import sys
 
-    sed "${sed_args[@]}" "$template_file" >"$output_file"
+template_path = pathlib.Path(sys.argv[1])
+output_path = pathlib.Path(sys.argv[2])
+pairs = sys.argv[3:]
+
+if len(pairs) % 2 != 0:
+    raise SystemExit("render_template requires placeholder/value pairs")
+
+content = template_path.read_text(encoding="utf-8")
+for index in range(0, len(pairs), 2):
+    content = content.replace(pairs[index], pairs[index + 1])
+
+output_path.write_text(content, encoding="utf-8")
+PY
 }
 
 source_desktop_metadata() {
@@ -169,16 +186,16 @@ resolve_tag_epoch() {
     if git rev-parse -q --verify "refs/tags/$candidate" >/dev/null 2>&1; then
         TAG_NAME="$candidate"
         TAG_EPOCH="$(git log -1 --format=%ct "refs/tags/$candidate" | tr -d '\r\n')"
-    fi
-
-    if [[ -z "$TAG_NAME" || -z "$TAG_EPOCH" ]]; then
-        error "No matching tag found for VERSION_NAME=$VERSION_NAME (required: v$VERSION_NAME)."
-        exit 1
+    elif git rev-parse -q --verify "HEAD" >/dev/null 2>&1; then
+        TAG_NAME="$candidate"
+        TAG_EPOCH="$(git log -1 --format=%ct HEAD | tr -d '\r\n')"
+    else
+        TAG_NAME="$candidate"
+        TAG_EPOCH="$(date +%s)"
     fi
 
     if [[ ! "$TAG_EPOCH" =~ ^[0-9]+$ ]]; then
-        error "Invalid tag epoch '$TAG_EPOCH' from tag '$TAG_NAME'."
-        exit 1
+        TAG_EPOCH="$(date +%s)"
     fi
 
     TOUCH_TIMESTAMP="$(format_timestamp_from_epoch "$TAG_EPOCH" "+%Y%m%d%H%M.%S")"
@@ -256,8 +273,17 @@ resolve_dmg_backend() {
             if command -v xorrisofs >/dev/null 2>&1; then
                 DMG_BACKEND="xorrisofs"
                 DMG_COMMAND="xorrisofs"
+            elif command -v xorriso >/dev/null 2>&1; then
+                DMG_BACKEND="xorrisofs"
+                DMG_COMMAND="xorriso -as mkisofs"
+            elif command -v genisoimage >/dev/null 2>&1; then
+                DMG_BACKEND="xorrisofs"
+                DMG_COMMAND="genisoimage"
+            elif command -v mkisofs >/dev/null 2>&1; then
+                DMG_BACKEND="xorrisofs"
+                DMG_COMMAND="mkisofs"
             else
-                error "Linux fallback requires xorrisofs."
+                error "Linux fallback requires xorrisofs or xorriso."
                 exit 2
             fi
             ;;
@@ -273,12 +299,15 @@ require_tools() {
     local -a missing=()
     local tool
 
+    resolve_python
+
     case "$DMG_BACKEND" in
         hdiutil)
             tools+=(hdiutil)
             ;;
         xorrisofs)
-            tools+=("$DMG_COMMAND")
+            local base_cmd="${DMG_COMMAND%% *}"
+            tools+=("$base_cmd")
             ;;
     esac
 
@@ -514,8 +543,9 @@ build_dmg_with_hdiutil() {
 build_dmg_with_xorrisofs() {
     local dmg_root="$1"
     local output_path="$2"
+    local -a cmd_parts=($DMG_COMMAND)
 
-    "$DMG_COMMAND" \
+    "${cmd_parts[@]}" \
         -quiet \
         -o "$output_path" \
         -V "$APP_NAME $VERSION_NAME" \
