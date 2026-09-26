@@ -69,12 +69,12 @@ jobs:
         with:
           name: android
           path: androidApp/build/outputs/apk/**/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v7
         with:
           name: mapping-android
           path: androidApp/build/outputs/mapping/fossRelease/mapping.txt
-          if-no-files-found: error
+          if-no-files-found: warn
           compression-level: 9
 
   desktop:
@@ -292,21 +292,27 @@ jobs:
 
   publish:
     needs: [android, desktop]
-    if: ${{ !inputs.no-publish }}
+    if: >-
+      always() &&
+      !inputs.no-publish &&
+      (needs.desktop.result == 'success' || needs.android.result == 'success')
     runs-on: ubuntu-26.04
     steps:
       - name: Download Android artifacts
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           pattern: android
           path: release-artifacts
       - name: Download desktop artifacts
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           pattern: desktop-*
           path: release-artifacts
       - name: Download R8 mappings
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           pattern: mapping-*
           path: mapping
