@@ -18,6 +18,8 @@ import fr.husi.repository.DesktopRepository
 import fr.husi.resources.Res
 import fr.husi.resources.app_name
 import fr.husi.resources.close
+import fr.husi.resources.comet_logo
+import fr.husi.resources.comet_tray_icon
 import fr.husi.resources.content_copy
 import fr.husi.resources.copy_terminal_proxy
 import fr.husi.resources.exit
@@ -118,7 +120,7 @@ internal fun HusiTray(
 
     val serviceStatus by BackendState.status.collectAsState()
     val serviceMode by DataStore.serviceMode.flow()
-        .collectAsState(Key.MODE_VPN)
+        .collectAsState(Key.MODE_PROXY)
     val systemProxyEnabled by DataStore.systemProxy.flow()
         .collectAsState(false)
     val hasInboundAuth by DataStore.hasInboundAuthFlow()
@@ -126,6 +128,9 @@ internal fun HusiTray(
 
     fun setServiceMode(mode: String) {
         if (DataStore.serviceMode.getBlocking() == mode) return
+        if (mode == Key.MODE_VPN && DataStore.systemProxy.getBlocking()) {
+            DataStore.systemProxy.setBlocking(false)
+        }
         DataStore.serviceMode.setBlocking(mode)
         if (serviceStatus.state.canStop) {
             repository.reloadService()
@@ -133,7 +138,7 @@ internal fun HusiTray(
     }
 
     Tray(
-        icon = painterResource(Res.drawable.ic_service_active),
+        icon = painterResource(Res.drawable.comet_tray_icon),
         tooltip = stringResource(Res.string.app_name),
         primaryAction = onOpenWindow,
         menuContent = {

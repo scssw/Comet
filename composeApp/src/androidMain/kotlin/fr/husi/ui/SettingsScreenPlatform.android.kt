@@ -356,6 +356,7 @@ internal actual fun rememberAppLanguageController(defaultTag: String): AppLangua
             override var value: String = initialValue
                 set(value) {
                     field = value
+                    DataStore.appLanguage.setBlocking(value)
                     AppCompatDelegate.setApplicationLocales(
                         LocaleListCompat.forLanguageTags(value),
                     )

@@ -49,6 +49,7 @@ import fr.husi.repository.resolveDesktopRepository
 import fr.husi.repository.resolvePackagedAnjaNativesDir
 import fr.husi.resources.Res
 import fr.husi.resources.app_name
+import fr.husi.resources.comet_logo
 import fr.husi.resources.ic_service_active
 import fr.husi.ui.AuthChallengeDialogs
 import fr.husi.ui.MainScreen
@@ -79,6 +80,7 @@ const val APP_NAME = "fr.husi"
 private const val ANJA_NATIVES_DIR_PROPERTY = "anja.natives.dir"
 
 fun main(args: Array<String>) {
+    configureGraphicsRendering()
     configureNucleusAppIdentity()
     // Before any Libcore class load: packaged installs point at the sidecar library.
     configureAnjaNativesDir()
@@ -86,6 +88,23 @@ fun main(args: Array<String>) {
     // Go threads that delivered a callback stay attached to the JVM as non-daemon
     // threads, so a command that consumed a stream would otherwise never return.
     exitProcess(0)
+}
+
+/**
+ * Configure graphics pipeline for Compose Desktop.
+ * On Windows, Skiko's default Direct3D pipeline causes severe window and component flickering
+ * (due to DWM swapchain presentation issues, G-Sync, multi-GPU and transparency/blur conflicts).
+ * Using OPENGL provides stable hardware acceleration and prevents flickering.
+ */
+private fun configureGraphicsRendering() {
+    if (PlatformInfo.isWindows) {
+        if (System.getProperty("skiko.renderApi") == null) {
+            System.setProperty("skiko.renderApi", "OPENGL")
+        }
+        if (System.getProperty("sun.java2d.d3d") == null) {
+            System.setProperty("sun.java2d.d3d", "false")
+        }
+    }
 }
 
 /**
@@ -97,7 +116,7 @@ fun main(args: Array<String>) {
  */
 private fun configureNucleusAppIdentity() {
     System.setProperty("nucleus.app.id", APP_NAME)
-    System.setProperty("nucleus.app.name", "Husi")
+    System.setProperty("nucleus.app.name", "Comet")
 }
 
 /**
@@ -282,7 +301,7 @@ class DesktopMain(
                 }
 
                 val appName = stringResource(Res.string.app_name)
-                val iconServiceActive = painterResource(Res.drawable.ic_service_active)
+                val appIcon = painterResource(Res.drawable.comet_logo)
 
                 if (!noTray) {
                     HusiTray(
@@ -299,9 +318,10 @@ class DesktopMain(
                     state = windowState,
                     visible = windowVisible,
                     title = appName,
-                    icon = iconServiceActive,
+                    icon = appIcon,
                 ) {
                     AppTheme {
+                        ConfigureWindowsWindow(window)
                         MainScreen(
                             moveToBackground = leaveWindow,
                         )

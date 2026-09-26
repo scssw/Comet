@@ -31,3 +31,11 @@ go.work*
 /external
 
 __pycache__/
+
+# Binaries and build artifacts
+*.exe
+*.apk
+*.orig
+proto/bin/
+cometlogo.png
+

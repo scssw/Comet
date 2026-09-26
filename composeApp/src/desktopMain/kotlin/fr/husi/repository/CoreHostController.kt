@@ -139,7 +139,11 @@ internal class CoreHostController(
             }
         }
         scope.launch {
-            combine(DataStore.systemProxy.flow(), DataStore.hasInboundAuthFlow(), ::Pair).collect {
+            combine(
+                DataStore.systemProxy.flow(),
+                DataStore.serviceMode.flow(),
+                DataStore.hasInboundAuthFlow(),
+            ) { _, _, _ -> Unit }.collect {
                 access.withLock { syncSystemProxyLocked() }
             }
         }
@@ -693,10 +697,18 @@ internal class CoreHostController(
         )
         Logs.i("starting core host: ${command.joinToString(" ")}")
 
-        val process = ProcessBuilder(command)
+        val processBuilder = ProcessBuilder(command)
             .directory(coreRunDir)
             .redirectErrorStream(false)
-            .start()
+
+        val parentDir = binary.parentFile?.absolutePath
+        if (!parentDir.isNullOrBlank()) {
+            val env = processBuilder.environment()
+            val currentPath = env["PATH"] ?: env["Path"] ?: ""
+            env["PATH"] = if (currentPath.isBlank()) parentDir else "$parentDir${File.pathSeparator}$currentPath"
+        }
+
+        val process = processBuilder.start()
 
         sessionProcess = process
         sessionStdin = process.outputStream
@@ -817,7 +829,12 @@ internal class CoreHostController(
     }
 
     private suspend fun syncSystemProxyLocked() {
-        val shouldApply = DataStore.systemProxy.get() &&
+        val isVpn = DataStore.serviceMode.get() == Key.MODE_VPN
+        if (isVpn && DataStore.systemProxy.get()) {
+            DataStore.systemProxy.set(false)
+        }
+        val shouldApply = !isVpn &&
+            DataStore.systemProxy.get() &&
             DataStore.serviceState == ServiceState.Connected &&
             foreignOwner == null &&
             !DataStore.hasInboundAuth()

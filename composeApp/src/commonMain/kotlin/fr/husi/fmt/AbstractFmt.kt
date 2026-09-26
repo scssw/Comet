@@ -20,6 +20,7 @@ import fr.husi.fmt.SingBoxOptions.TYPE_NAIVE
 import fr.husi.fmt.SingBoxOptions.TYPE_OPENCONNECT
 import fr.husi.fmt.SingBoxOptions.TYPE_OPENVPN_CLIENT
 import fr.husi.fmt.SingBoxOptions.TYPE_SHADOWSOCKS
+import fr.husi.fmt.SingBoxOptions.TYPE_SHADOWSOCKSR
 import fr.husi.fmt.SingBoxOptions.TYPE_SNELL
 import fr.husi.fmt.SingBoxOptions.TYPE_SOCKS
 import fr.husi.fmt.SingBoxOptions.TYPE_SSH
@@ -60,6 +61,9 @@ import fr.husi.fmt.shadowquic.ShadowQUICBean
 import fr.husi.fmt.shadowsocks.ShadowsocksBean
 import fr.husi.fmt.shadowsocks.buildSingBoxOutboundShadowsocksBean
 import fr.husi.fmt.shadowsocks.parseShadowsocksOutbound
+import fr.husi.fmt.shadowsocksr.ShadowsocksRBean
+import fr.husi.fmt.shadowsocksr.buildSingBoxOutboundShadowsocksRBean
+import fr.husi.fmt.shadowsocksr.parseShadowsocksROutbound
 import fr.husi.fmt.shadowtls.ShadowTLSBean
 import fr.husi.fmt.snell.SnellBean
 import fr.husi.fmt.snell.buildSingBoxOutboundSnellBean
@@ -139,6 +143,7 @@ fun AbstractBean.toJsonStringKxs(): String = when (this) {
     is OpenVPNBean -> kxs.encodeToString(this)
     is ShadowQUICBean -> kxs.encodeToString(this)
     is ShadowsocksBean -> kxs.encodeToString(this)
+    is ShadowsocksRBean -> kxs.encodeToString(this)
     is ShadowTLSBean -> kxs.encodeToString(this)
     is SnellBean -> kxs.encodeToString(this)
     is SOCKSBean -> kxs.encodeToString(this)
@@ -163,6 +168,9 @@ suspend fun buildSingBoxOutbound(bean: AbstractBean): String = when (bean) {
 
     is ShadowsocksBean ->
         kxs.encodeToString(buildSingBoxOutboundShadowsocksBean(bean).apply { tag = bean.name })
+
+    is ShadowsocksRBean ->
+        kxs.encodeToString(buildSingBoxOutboundShadowsocksRBean(bean).apply { tag = bean.name })
 
     is SnellBean ->
         kxs.encodeToString(buildSingBoxOutboundSnellBean(bean).apply { tag = bean.name })
@@ -240,6 +248,8 @@ fun parseOutbound(json: JSONMap): AbstractBean? = when (json["type"].toString())
     TYPE_HTTP -> parseHttpOutbound(json)
 
     TYPE_SHADOWSOCKS -> parseShadowsocksOutbound(json)
+
+    TYPE_SHADOWSOCKSR -> parseShadowsocksROutbound(json)
 
     TYPE_SNELL -> parseSnellOutbound(json)
 

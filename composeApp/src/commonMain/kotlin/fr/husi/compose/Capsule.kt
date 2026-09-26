@@ -200,6 +200,7 @@ private fun CapsuleBarLayout(
     modifier: Modifier,
     hazeState: HazeState?,
     navigationIcon: (@Composable () -> Unit)?,
+    leadContent: (@Composable () -> Unit)? = null,
     windowInsets: WindowInsets,
     scrollBehavior: TopAppBarScrollBehavior?,
     capsuleSpacing: Dp,
@@ -229,6 +230,10 @@ private fun CapsuleBarLayout(
                 ) {
                     navigationIcon()
                 }
+            }
+
+            if (leadContent != null) {
+                leadContent()
             }
 
             center()
@@ -270,6 +275,7 @@ fun CapsuleSearchTopBar(
     inputField: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     navigationIcon: (@Composable () -> Unit)? = null,
+    leadContent: (@Composable () -> Unit)? = null,
     onSearchPillClick: (() -> Unit)? = null,
     onSearchPillLongPress: (() -> Unit)? = null,
     actions: @Composable CapsuleActionsScope.() -> Unit = {},
@@ -281,6 +287,7 @@ fun CapsuleSearchTopBar(
         modifier = modifier,
         hazeState = hazeState,
         navigationIcon = navigationIcon,
+        leadContent = leadContent,
         windowInsets = windowInsets,
         scrollBehavior = scrollBehavior,
         capsuleSpacing = capsuleSpacing,

@@ -220,7 +220,7 @@ apply_windows_toolchain_env() {
         ;;
     esac
 
-    if [ "$host_platform" == "windows" ]; then
+    if [ "$host_platform" == "windows" ] && command -v gcc >/dev/null 2>&1; then
         return
     fi
 
@@ -448,6 +448,14 @@ if [ "$BUILD_DESKTOP" == "1" ]; then
         cp -f "$native_src" "${native_dst_dir}/${native_lib_name}"
         echo ">> Sidecar $(realpath "${native_dst_dir}/${native_lib_name}")"
         sha256sum "${native_dst_dir}/${native_lib_name}"
+        if [ "$desktop_platform" == "windows" ] && [[ ",$local_build_tags," == *",with_naive_outbound,"* ]]; then
+            cronet_mod_dir="$(go list -m -f '{{.Dir}}' "github.com/sagernet/cronet-go/lib/windows_${desktop_arch}" 2>/dev/null || true)"
+            if [ -n "$cronet_mod_dir" ] && [ -f "$cronet_mod_dir/libcronet.dll" ]; then
+                cp -f "$cronet_mod_dir/libcronet.dll" "${native_dst_dir}/libcronet.dll"
+                echo ">> Cronet $(realpath "${native_dst_dir}/libcronet.dll")"
+                sha256sum "${native_dst_dir}/libcronet.dll"
+            fi
+        fi
         DESKTOP_OUTPUTS+=("$desktop_output")
     done
 fi

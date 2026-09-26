@@ -5,11 +5,14 @@ import fr.husi.SubscriptionType
 import fr.husi.database.DataStore
 import fr.husi.database.GroupManager
 import fr.husi.database.ProfileManager
+import fr.husi.database.ProxyEntity
 import fr.husi.database.ProxyGroup
+import fr.husi.database.SagerDatabase
 import fr.husi.database.SubscriptionBean
 import fr.husi.fmt.AbstractBean
 import fr.husi.fmt.BeanConverters
 import fr.husi.group.GroupUpdater
+import fr.husi.ktx.applyDefaultValues
 import fr.husi.ktx.b64Decode
 import fr.husi.ktx.blankAsNull
 import fr.husi.ktx.defaultOr
@@ -108,9 +111,17 @@ class ImportLinkInteractor {
     }
 
     suspend fun importProfiles(proxies: List<AbstractBean>): Int {
+        if (proxies.isEmpty()) return 0
         val targetId = DataStore.selectedGroupForImport()
-        for (proxy in proxies) {
-            ProfileManager.createProfile(targetId, proxy)
+        SagerDatabase.proxyDao.shiftOrder(targetId, proxies.size.toLong())
+        for ((index, proxy) in proxies.withIndex()) {
+            proxy.applyDefaultValues()
+            val profile = ProxyEntity(groupId = targetId).apply {
+                id = 0
+                putBean(proxy)
+                userOrder = (index + 1).toLong()
+            }
+            profile.id = SagerDatabase.proxyDao.addProxy(profile)
         }
         DataStore.selectedGroup.set(targetId)
         return proxies.size

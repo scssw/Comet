@@ -3,6 +3,10 @@
 
 Unicode true
 
+; Maximum compression with solid LZMA dictionary
+SetCompressor /SOLID /FINAL lzma
+SetCompressorDictSize 64
+
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
 !include "LogicLib.nsh"
@@ -102,6 +106,7 @@ Section "$(InstallSectionName)"
     File "/oname=${APP_NAME}.exe" "__HUSI_LAUNCHER_FILE__"
     File "/oname=husi-core.exe" "__HUSI_CORE_FILE__"
     File "/oname=husicore.dll" "__HUSI_CORE_LIB_FILE__"
+__HUSI_CRONET_INSTALL__
     File "/oname=LICENSE" "__HUSI_LICENSE_FILE__"
     File "/oname=desktop-java-opts.conf.template" "__HUSI_JAVA_OPTS_FILE__"
     File "/oname=desktop-app-args.conf.template" "__HUSI_APP_ARGS_FILE__"
@@ -246,6 +251,7 @@ Section "un.$(UninstallSectionName)"
     Delete "$INSTDIR\${APP_NAME}.exe"
     Delete "$INSTDIR\husi-core.exe"
     Delete "$INSTDIR\husicore.dll"
+__HUSI_CRONET_UNINSTALL__
     Delete "$INSTDIR\LICENSE"
     Delete "$INSTDIR\desktop-java-opts.conf.template"
     Delete "$INSTDIR\desktop-app-args.conf.template"

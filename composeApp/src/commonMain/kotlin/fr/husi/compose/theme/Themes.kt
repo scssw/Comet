@@ -118,8 +118,8 @@ fun AppTheme(content: @Composable () -> Unit) {
             GREY -> if (isDarkMode) Grey.darkScheme else Grey.lightScheme
             BLUE_GREY -> if (isDarkMode) BlueGrey.darkScheme else BlueGrey.lightScheme
             BLACK -> if (isDarkMode) Black.darkScheme else Black.lightScheme
-            DYNAMIC -> dynamicScheme ?: if (isDarkMode) Red.darkScheme else Red.lightScheme
-            else -> dynamicScheme ?: if (isDarkMode) Red.darkScheme else Red.lightScheme
+            DYNAMIC -> dynamicScheme ?: if (isDarkMode) Indigo.darkScheme else Indigo.lightScheme
+            else -> dynamicScheme ?: if (isDarkMode) Indigo.darkScheme else Indigo.lightScheme
         }
     }
 

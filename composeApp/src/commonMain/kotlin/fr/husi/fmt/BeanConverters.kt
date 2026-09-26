@@ -17,6 +17,7 @@ import fr.husi.fmt.openconnect.OpenConnectBean
 import fr.husi.fmt.openvpn.OpenVPNBean
 import fr.husi.fmt.shadowquic.ShadowQUICBean
 import fr.husi.fmt.shadowsocks.ShadowsocksBean
+import fr.husi.fmt.shadowsocksr.ShadowsocksRBean
 import fr.husi.fmt.shadowtls.ShadowTLSBean
 import fr.husi.fmt.snell.SnellBean
 import fr.husi.fmt.socks.SOCKSBean
@@ -82,6 +83,13 @@ class BeanConverters {
         fun shadowsocksDeserialize(bytes: ByteArray?): ShadowsocksBean? {
             if (bytes?.isNotEmpty() != true) return null
             return deserialize(ShadowsocksBean(), bytes)
+        }
+
+        @TypeConverter
+        @JvmStatic
+        fun shadowsocksRDeserialize(bytes: ByteArray?): ShadowsocksRBean? {
+            if (bytes?.isNotEmpty() != true) return null
+            return deserialize(ShadowsocksRBean(), bytes)
         }
 
         @TypeConverter

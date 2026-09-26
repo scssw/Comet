@@ -60,6 +60,8 @@ import fr.husi.fmt.openvpn.buildSingBoxEndpointOpenVPNBean
 import fr.husi.fmt.shadowquic.ShadowQUICBean
 import fr.husi.fmt.shadowsocks.ShadowsocksBean
 import fr.husi.fmt.shadowsocks.buildSingBoxOutboundShadowsocksBean
+import fr.husi.fmt.shadowsocksr.ShadowsocksRBean
+import fr.husi.fmt.shadowsocksr.buildSingBoxOutboundShadowsocksRBean
 import fr.husi.fmt.shadowtls.ShadowTLSBean
 import fr.husi.fmt.shadowtls.buildSingBoxOutboundShadowTLSBean
 import fr.husi.fmt.snell.SnellBean
@@ -847,6 +849,8 @@ suspend fun buildConfig(
                         is SOCKSBean -> buildSingBoxOutboundSocksBean(bean).asKxsMap()
 
                         is ShadowsocksBean -> buildSingBoxOutboundShadowsocksBean(bean).asKxsMap()
+
+                        is ShadowsocksRBean -> buildSingBoxOutboundShadowsocksRBean(bean).asKxsMap()
 
                         is SnellBean -> buildSingBoxOutboundSnellBean(bean).asKxsMap()
 

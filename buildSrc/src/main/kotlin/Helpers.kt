@@ -261,6 +261,9 @@ fun Project.setupApp() {
             if (targetAbi.isNotBlank()) {
                 reset()
                 include(targetAbi)
+            } else {
+                reset()
+                include("arm64-v8a")
             }
         }
 
@@ -272,7 +275,7 @@ fun Project.setupApp() {
 
         registerApkRenamer(
             replaceFrom = project.name,
-            replaceToTemplate = "husi-%VERSION_NAME%",
+            replaceToTemplate = "Comet-%VERSION_NAME%",
             stripTokens = listOf("-release", "-foss"),
         )
 

@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+if [ -d "/d/tools/zig" ]; then
+  export PATH="/d/tools/zig:$PATH"
+fi
+export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8"
+
 for argument in "$@"; do
   if [ "$argument" == "--android" ]; then
     source buildScript/init/env.sh

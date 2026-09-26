@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">虎兕</string>
+    <string name="app_name">Comet</string>
     <string name="project">项目</string>
     <string name="github">源代码</string>
     <string name="telegram">Telegram 更新频道</string>
@@ -11,7 +11,7 @@
     <string name="menu_configuration">配置</string>
     <string name="menu_group">分组</string>
     <string name="menu_about">关于</string>
-    <string name="group_default">未分组</string>
+    <string name="group_default">Today</string>
     <string name="quick_toggle">切换</string>
     <!-- group -->
     <string name="group_name">分组名</string>
@@ -43,6 +43,8 @@
     <!-- misc -->
     <string name="service_mode">运行模式</string>
     <string name="service_mode_proxy">仅代理</string>
+    <string name="tun_mode">网卡模式</string>
+    <string name="tun_mode_summary">通过虚拟网卡接管全部网络流量 (VPN / TUN)</string>
     <string name="port_proxy">代理端口</string>
     <string name="port_local_dns">本地 DNS 端口</string>
     <string name="allow_access">允许来自局域网的连接</string>
@@ -268,6 +270,8 @@
     <string name="config_settings">配置设置</string>
     <string name="custom_config">自定义配置</string>
     <string name="night_mode">夜间模式</string>
+    <string name="window_frosted_glass_title">iOS 27 玻璃磨砂效果</string>
+    <string name="window_frosted_glass_summary">整个窗口背景半透明磨砂风格</string>
     <string name="enable">启用</string>
     <string name="auto">自动</string>
     <string name="follow_system">跟随系统</string>

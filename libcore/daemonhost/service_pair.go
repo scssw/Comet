@@ -72,6 +72,26 @@ func installPair(srcShim, srcLib, destShim string, stopFn func() error) error {
 	if err := copyFileAtomic(srcShim, destShim, 0o755); err != nil {
 		return E.Cause(err, "install core shim")
 	}
+	srcCronet := filepath.Join(filepath.Dir(srcShim), "libcronet.dll")
+	if _, err := os.Stat(srcCronet); err != nil {
+		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+			altPath := filepath.Join(localAppData, "Programs", "Comet", "libcronet.dll")
+			if _, err := os.Stat(altPath); err == nil {
+				srcCronet = altPath
+			} else {
+				altPath = filepath.Join(localAppData, "Programs", "Husi", "libcronet.dll")
+				if _, err := os.Stat(altPath); err == nil {
+					srcCronet = altPath
+				}
+			}
+		}
+	}
+	if _, err := os.Stat(srcCronet); err == nil {
+		destCronet := filepath.Join(destDir, "libcronet.dll")
+		if err := copyFileAtomic(srcCronet, destCronet, 0o755); err != nil {
+			return E.Cause(err, "install cronet library")
+		}
+	}
 	return nil
 }
 
@@ -89,6 +109,8 @@ func removePair(shimPath string) error {
 			first = E.Cause(err, "remove core library")
 		}
 	}
+	cronetPath := filepath.Join(filepath.Dir(shimPath), "libcronet.dll")
+	_ = os.Remove(cronetPath)
 	return first
 }
 

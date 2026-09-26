@@ -1,5 +1,7 @@
 package fr.husi.repository
 
+import fr.husi.Key
+import fr.husi.database.DataStore
 import fr.husi.ktx.invariantDirectoryPathString
 import fr.husi.libcore.Service
 import kotlinx.coroutines.flow.StateFlow
@@ -125,6 +127,13 @@ open class DesktopRepository(
     }
 
     override fun startService() {
+        if (DataStore.serviceMode.getBlocking() == Key.MODE_PROXY) {
+            DataStore.systemProxy.setBlocking(true)
+        } else if (DataStore.serviceMode.getBlocking() == Key.MODE_VPN) {
+            if (DataStore.systemProxy.getBlocking()) {
+                DataStore.systemProxy.setBlocking(false)
+            }
+        }
         coreHostController.start()
     }
 
@@ -133,6 +142,7 @@ open class DesktopRepository(
     }
 
     override fun stopService() {
+        DataStore.systemProxy.setBlocking(false)
         coreHostController.stop()
     }
 

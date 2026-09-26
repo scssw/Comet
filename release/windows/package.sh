@@ -28,6 +28,18 @@ error() {
     echo "[package] $*" >&2
 }
 
+to_native_path() {
+    if [[ -z "${1:-}" ]]; then
+        echo ""
+        return 0
+    fi
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        echo "$1"
+    fi
+}
+
 # shellcheck source=release/windows/codesign.sh
 source "$SCRIPT_DIR/codesign.sh"
 
@@ -87,7 +99,7 @@ render_template() {
         exit 1
     fi
 
-    "$PYTHON_BIN" - "$template_file" "$output_file" "$@" <<'PY'
+    "$PYTHON_BIN" - "$(to_native_path "$template_file")" "$(to_native_path "$output_file")" "$@" <<'PY'
 import pathlib
 import sys
 
@@ -102,7 +114,7 @@ content = template_path.read_text(encoding="utf-8")
 for index in range(0, len(pairs), 2):
     content = content.replace(pairs[index], pairs[index + 1])
 
-output_path.write_text(content, encoding="utf-8")
+output_path.write_text(content, encoding="utf-8-sig")
 PY
 }
 
@@ -129,16 +141,20 @@ source_desktop_jre_modules() {
 }
 
 resolve_python() {
-    if command -v python3 >/dev/null 2>&1; then
-        PYTHON_BIN="python3"
+    if [[ -n "${PYTHON_BIN:-}" ]] && "$PYTHON_BIN" -c "import sys" >/dev/null 2>&1; then
         return
     fi
-    if command -v python >/dev/null 2>&1; then
-        PYTHON_BIN="python"
-        return
-    fi
+    local candidate
+    for candidate in python python3; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            if "$candidate" -c "import sys" >/dev/null 2>&1; then
+                PYTHON_BIN="$(command -v "$candidate")"
+                return
+            fi
+        fi
+    done
 
-    error "Missing required tool: python3"
+    error "Missing required tool: python or python3"
     exit 2
 }
 
@@ -327,6 +343,7 @@ resolve_jbr_jmods() {
         error "Fetch them first: ./run lib jbr windows/$TARGET_ARCH"
         exit 1
     fi
+    JBR_JMODS_DIR="$(cd "$JBR_JMODS_DIR" && pwd)"
 }
 
 resolve_jlink() {
@@ -362,7 +379,7 @@ require_tools() {
 
 touch_path() {
     local path="$1"
-    "$PYTHON_BIN" - "$TAG_EPOCH" "$path" <<'PY'
+    "$PYTHON_BIN" - "$TAG_EPOCH" "$(to_native_path "$path")" <<'PY'
 import os
 import sys
 
@@ -374,7 +391,7 @@ PY
 
 touch_path_tree() {
     local root="$1"
-    "$PYTHON_BIN" - "$TAG_EPOCH" "$root" <<'PY'
+    "$PYTHON_BIN" - "$TAG_EPOCH" "$(to_native_path "$root")" <<'PY'
 import os
 import sys
 
@@ -513,6 +530,34 @@ resolve_core_lib() {
     exit 1
 }
 
+resolve_cronet_lib() {
+    local requested="$1"
+    local default_path="$ROOT_DIR/libcore/build/${TARGET_PLATFORM}_${TARGET_ARCH}/libcronet.dll"
+
+    if [[ -n "$requested" ]]; then
+        if [[ ! -f "$requested" ]]; then
+            error "Cronet native library not found: $requested"
+            exit 1
+        fi
+        INPUT_CRONET_LIB="$requested"
+        return
+    fi
+
+    if [[ -f "$default_path" ]]; then
+        INPUT_CRONET_LIB="$default_path"
+        return
+    fi
+
+    local cronet_mod_dir
+    cronet_mod_dir="$(go list -m -f '{{.Dir}}' "github.com/sagernet/cronet-go/lib/windows_${TARGET_ARCH}" 2>/dev/null || true)"
+    if [[ -n "$cronet_mod_dir" && -f "$cronet_mod_dir/libcronet.dll" ]]; then
+        INPUT_CRONET_LIB="$cronet_mod_dir/libcronet.dll"
+        return
+    fi
+
+    INPUT_CRONET_LIB=""
+}
+
 nsis_url_scheme_install_entries() {
     local scheme
     for scheme in "${DESKTOP_URL_SCHEMES[@]}"; do
@@ -543,28 +588,30 @@ build_runtime() {
     rm -rf "$runtime_dir"
     mkdir -p "$(dirname "$runtime_dir")"
     jlink \
-        --module-path "$JBR_JMODS_DIR" \
+        --module-path "$(to_native_path "$JBR_JMODS_DIR")" \
         --add-modules "$DESKTOP_JRE_MODULES_WINDOWS" \
-        --strip-java-debug-attributes \
+        --strip-debug \
         --no-header-files \
         --no-man-pages \
-        --compress=zip-6 \
-        --output "$runtime_dir"
+        --compress=2 \
+        --output "$(to_native_path "$runtime_dir")"
     log "Linked bundled runtime: $runtime_dir"
 }
 
 output_filename() {
     local extension="$1"
-    echo "${PACKAGE_NAME}-${VERSION_NAME}-windows-${TARGET_ARCH}${VARIANT_SUFFIX}${extension}"
+    echo "${APP_NAME}-${VERSION_NAME}-windows-${TARGET_ARCH}${VARIANT_SUFFIX}${extension}"
 }
 
 # jlink emits hundreds of files, so the installer takes the tree wholesale and
 # the uninstaller drops it the same way. RMDir /r stays scoped to this one
 # subdirectory of $INSTDIR.
 nsis_runtime_install_entries() {
+    local native_runtime
+    native_runtime="$(to_native_path "$RUNTIME_DIR")"
     cat <<EOF
     SetOutPath "\$INSTDIR\\runtime"
-    File /r "$RUNTIME_DIR/*"
+    File /r "$native_runtime\\*"
     SetOutPath "\$INSTDIR"
 EOF
 }
@@ -591,6 +638,10 @@ prepare_rootfs() {
     # Sidecar anja library next to husi-core (N7); UI sets anja.natives.dir to this dir.
     cp "$INPUT_CORE_LIB" "$core_lib_path"
     chmod 755 "$core_lib_path"
+    if [[ -n "$INPUT_CRONET_LIB" && -f "$INPUT_CRONET_LIB" ]]; then
+        cp "$INPUT_CRONET_LIB" "$root/libcronet.dll"
+        chmod 755 "$root/libcronet.dll"
+    fi
     cp "$WINDOWS_JAVA_OPTS_FILE" "$root/desktop-java-opts.conf.template"
     cp "$ROOT_DIR/release/linux/desktop/desktop-app-args.conf" "$root/desktop-app-args.conf.template"
     cp "$ROOT_DIR/LICENSE" "$root/LICENSE"
@@ -606,7 +657,7 @@ build_zip() {
     output_path="$OUTPUT_DIR/$(output_filename ".zip")"
 
     rm -f "$output_path"
-    "$PYTHON_BIN" - "$portable_root" "$output_path" <<'PY'
+    "$PYTHON_BIN" - "$(to_native_path "$portable_root")" "$(to_native_path "$output_path")" <<'PY'
 import os
 import sys
 import zipfile
@@ -654,6 +705,13 @@ build_nsis() {
         runtime_uninstall="$(nsis_runtime_uninstall_entries)"
     fi
 
+    local cronet_install=""
+    local cronet_uninstall=""
+    if [[ -n "$INPUT_CRONET_LIB" && -f "$INPUT_CRONET_LIB" ]]; then
+        cronet_install="    File \"/oname=libcronet.dll\" \"$(to_native_path "$INPUT_CRONET_LIB")\""
+        cronet_uninstall="    Delete \"\$INSTDIR\\libcronet.dll\""
+    fi
+
     render_template \
         "$NSIS_TEMPLATE_FILE" \
         "$nsis_source" \
@@ -665,21 +723,23 @@ build_nsis() {
         "__HUSI_APP_URL__" "$APP_URL" \
         "__HUSI_MAINTAINER__" "$MAINTAINER" \
         "__HUSI_VI_VERSION__" "$vi_version" \
-        "__HUSI_OUTPUT_FILE__" "$output_path" \
-        "__HUSI_LICENSE_FILE__" "$ROOT_DIR/LICENSE" \
-        "__HUSI_LAUNCHER_FILE__" "$INPUT_LAUNCHER_BIN" \
-        "__HUSI_CORE_FILE__" "$INPUT_CORE_BIN" \
-        "__HUSI_CORE_LIB_FILE__" "$INPUT_CORE_LIB" \
-        "__HUSI_JAR_FILE__" "$INPUT_JAR" \
-        "__HUSI_JAVA_OPTS_FILE__" "$WINDOWS_JAVA_OPTS_FILE" \
-        "__HUSI_APP_ARGS_FILE__" "$ROOT_DIR/release/linux/desktop/desktop-app-args.conf" \
+        "__HUSI_OUTPUT_FILE__" "$(to_native_path "$output_path")" \
+        "__HUSI_LICENSE_FILE__" "$(to_native_path "$ROOT_DIR/LICENSE")" \
+        "__HUSI_LAUNCHER_FILE__" "$(to_native_path "$INPUT_LAUNCHER_BIN")" \
+        "__HUSI_CORE_FILE__" "$(to_native_path "$INPUT_CORE_BIN")" \
+        "__HUSI_CORE_LIB_FILE__" "$(to_native_path "$INPUT_CORE_LIB")" \
+        "__HUSI_CRONET_INSTALL__" "$cronet_install" \
+        "__HUSI_CRONET_UNINSTALL__" "$cronet_uninstall" \
+        "__HUSI_JAR_FILE__" "$(to_native_path "$INPUT_JAR")" \
+        "__HUSI_JAVA_OPTS_FILE__" "$(to_native_path "$WINDOWS_JAVA_OPTS_FILE")" \
+        "__HUSI_APP_ARGS_FILE__" "$(to_native_path "$ROOT_DIR/release/linux/desktop/desktop-app-args.conf")" \
         "__HUSI_URL_SCHEME_REGISTRY__" "$url_scheme_registry" \
         "__HUSI_URL_SCHEME_UNREGISTRY__" "$url_scheme_unregistry" \
         "__HUSI_RUNTIME_INSTALL__" "$runtime_install" \
         "__HUSI_RUNTIME_UNINSTALL__" "$runtime_uninstall"
 
     rm -f "$output_path"
-    "$NSIS_BIN" "$nsis_source"
+    "$NSIS_BIN" -INPUTCHARSET UTF8 "$(to_native_path "$nsis_source")"
     # Sign before the timestamp is forced: signing rewrites the file.
     if [[ "$SIGNING_ENABLED" -eq 1 ]]; then
         sign_pe "$output_path"
@@ -711,8 +771,10 @@ INPUT_JAR=""
 INPUT_LAUNCHER_BIN=""
 INPUT_CORE_BIN=""
 INPUT_CORE_LIB=""
+INPUT_CRONET_LIB=""
 OUTPUT_DIR="$OUTPUT_DIR_DEFAULT"
 FORMATS="zip,nsis"
+JBR_ONLY=0
 CHECK_TOOLS=0
 PACKAGE_NAME=""
 VERSION_NAME=""
@@ -755,6 +817,11 @@ while [[ $# -gt 0 ]]; do
             INPUT_CORE_LIB="$2"
             shift 2
             ;;
+        --cronet-lib)
+            require_arg "$1" "${2:-}"
+            INPUT_CRONET_LIB="$2"
+            shift 2
+            ;;
         -o|--output-dir)
             require_arg "$1" "${2:-}"
             OUTPUT_DIR="$2"
@@ -767,6 +834,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-sign)
             SIGNING_ENABLED=0
+            shift
+            ;;
+        --jbr-only)
+            JBR_ONLY=1
             shift
             ;;
         --check-tools)
@@ -807,9 +878,11 @@ resolve_input_jar "$INPUT_JAR"
 resolve_launcher_bin "$INPUT_LAUNCHER_BIN"
 resolve_core_bin "$INPUT_CORE_BIN"
 resolve_core_lib "$INPUT_CORE_LIB"
+resolve_cronet_lib "$INPUT_CRONET_LIB"
 mkdir -p "$OUTPUT_DIR"
 
-work_dir="$(mktemp -d)"
+mkdir -p "$ROOT_DIR/build/tmp"
+work_dir="$(mktemp -d -p "$ROOT_DIR/build/tmp")"
 cleanup() {
     rm -rf "$work_dir"
 }
@@ -818,9 +891,11 @@ trap cleanup EXIT
 resolve_signing "$work_dir"
 sign_payloads "$work_dir"
 
-VARIANT_SUFFIX=""
-RUNTIME_DIR=""
-emit_packages "$work_dir"
+if [[ "$JBR_ONLY" -eq 0 ]]; then
+    VARIANT_SUFFIX=""
+    RUNTIME_DIR=""
+    emit_packages "$work_dir"
+fi
 
 if [[ -n "$JBR_JMODS_DIR" ]]; then
     RUNTIME_DIR="$work_dir/runtime"

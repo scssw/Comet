@@ -10,6 +10,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import fr.husi.Key
 import fr.husi.TrafficSortMode
 import fr.husi.bg.BackendState
 import fr.husi.bg.DefaultNetworkListener
@@ -23,6 +24,7 @@ import fr.husi.fmt.SingBoxOptions
 import fr.husi.ktx.Logs
 import fr.husi.ktx.runOnDefaultDispatcher
 import fr.husi.ktx.runOnIoDispatcher
+import fr.husi.repository.resolveRepository
 import fr.husi.libcore.Libcore
 import fr.husi.platform.PlatformInfo
 import fr.husi.proto.daemon.ConnectionEvent
@@ -59,6 +61,7 @@ data class SystemProxyState(
     val enabled: Boolean,
     val mixedPort: Int,
     val hasInboundAuth: Boolean,
+    val serviceMode: String = Key.MODE_PROXY,
 )
 
 @Immutable
@@ -319,11 +322,13 @@ class DashboardViewModel(
                     DataStore.systemProxy.flow(),
                     DataStore.mixedPort.flow(),
                     DataStore.hasInboundAuthFlow(),
-                ) { enabled, mixedPort, hasInboundAuth ->
+                    DataStore.serviceMode.flow(),
+                ) { enabled, mixedPort, hasInboundAuth, serviceMode ->
                     SystemProxyState(
                         enabled = enabled,
                         mixedPort = mixedPort,
                         hasInboundAuth = hasInboundAuth,
+                        serviceMode = serviceMode,
                     )
                 }.collect { systemProxyState ->
                     uiState.update { it.copy(systemProxy = systemProxyState) }
@@ -967,6 +972,17 @@ class DashboardViewModel(
 
     fun setSystemProxyEnabled(enabled: Boolean) = runOnIoDispatcher {
         DataStore.systemProxy.set(enabled)
+    }
+
+    fun setServiceMode(mode: String) = runOnIoDispatcher {
+        if (DataStore.serviceMode.get() == mode) return@runOnIoDispatcher
+        if (mode == Key.MODE_VPN && DataStore.systemProxy.get()) {
+            DataStore.systemProxy.set(false)
+        }
+        DataStore.serviceMode.set(mode)
+        if (DataStore.serviceState.canStop) {
+            resolveRepository().reloadService()
+        }
     }
 }
 

@@ -17,18 +17,34 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
-private val DEFAULT_WINDOW_SIZE = DpSize(1200.dp, 800.dp)
+private val DEFAULT_WINDOW_SIZE = DpSize(800.dp, 1200.dp)
 
 internal fun initialWindowSize(): DpSize {
-    if (!DataStore.rememberWindowSize.getBlocking()) {
-        return DEFAULT_WINDOW_SIZE
+    val configuredSize = if (!DataStore.rememberWindowSize.getBlocking()) {
+        DEFAULT_WINDOW_SIZE
+    } else {
+        val width = DataStore.windowWidth.getBlocking()
+        val height = DataStore.windowHeight.getBlocking()
+        if (width <= 0 || height <= 0 || (width == 1200 && height == 800)) {
+            DEFAULT_WINDOW_SIZE
+        } else {
+            DpSize(width.dp, height.dp)
+        }
     }
-    val width = DataStore.windowWidth.getBlocking()
-    val height = DataStore.windowHeight.getBlocking()
-    if (width <= 0 || height <= 0) {
-        return DEFAULT_WINDOW_SIZE
-    }
-    return DpSize(width.dp, height.dp)
+
+    return runCatching {
+        val ge = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
+        val bounds = ge.maximumWindowBounds
+        val config = ge.defaultScreenDevice.defaultConfiguration
+        val scaleY = config.defaultTransform.scaleY.toFloat().coerceAtLeast(1.0f)
+        val scaleX = config.defaultTransform.scaleX.toFloat().coerceAtLeast(1.0f)
+        val maxAvailableHeightDp = (bounds.height / scaleY).dp
+        val maxAvailableWidthDp = (bounds.width / scaleX).dp
+        DpSize(
+            configuredSize.width.coerceAtMost(maxAvailableWidthDp),
+            configuredSize.height.coerceAtMost(maxAvailableHeightDp),
+        )
+    }.getOrDefault(configuredSize)
 }
 
 @OptIn(ExperimentalComposeUiApi::class, FlowPreview::class)

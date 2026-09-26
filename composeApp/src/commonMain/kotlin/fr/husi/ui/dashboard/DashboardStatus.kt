@@ -20,9 +20,11 @@ import fr.husi.compose.material3.Button
 import fr.husi.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import fr.husi.Key
 import fr.husi.compose.material3.Icon
 import fr.husi.compose.material3.Switch
 import fr.husi.compose.material3.Text
@@ -66,6 +68,7 @@ internal fun DashboardStatusScreen(
     isEditing: Boolean,
     selectClashMode: (mode: String) -> Unit,
     setSystemProxyEnabled: (Boolean) -> Unit,
+    setServiceMode: (String) -> Unit = {},
     showError: (String) -> Unit,
     onCopySuccess: () -> Unit,
     onWidgetsChange: (List<DashboardWidgetEntry>) -> Unit,
@@ -137,6 +140,7 @@ internal fun DashboardStatusScreen(
                         },
                         selectClashMode = selectClashMode,
                         setSystemProxyEnabled = setSystemProxyEnabled,
+                        setServiceMode = setServiceMode,
                         showError = showError,
                         onCopy = { value ->
                             scope.launch { clipboard.setPlainText(value) }
@@ -195,6 +199,7 @@ private fun DashboardWidgetContent(
     onToggleNetworkInterfacesVisible: () -> Unit,
     selectClashMode: (mode: String) -> Unit,
     setSystemProxyEnabled: (Boolean) -> Unit,
+    setServiceMode: (String) -> Unit,
     showError: (String) -> Unit,
     onCopy: (String) -> Unit,
 ) {
@@ -237,6 +242,7 @@ private fun DashboardWidgetContent(
             SystemProxyCard(
                 systemProxy = systemProxy,
                 setEnabled = setSystemProxyEnabled,
+                setServiceMode = setServiceMode,
             )
         }
 
@@ -374,40 +380,81 @@ private fun SourceAddressCard(
 private fun SystemProxyCard(
     systemProxy: SystemProxyState,
     setEnabled: (Boolean) -> Unit,
+    setServiceMode: (String) -> Unit,
 ) {
     ElevatedCard(
         modifier = Modifier.fillMaxSize(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = stringResource(Res.string.system_proxy),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = if (systemProxy.hasInboundAuth) {
-                        stringResource(Res.string.system_proxy_unavailable_inbound_auth)
-                    } else {
-                        "$LOCALHOST4:${systemProxy.mixedPort}"
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.system_proxy),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = if (systemProxy.hasInboundAuth) {
+                            stringResource(Res.string.system_proxy_unavailable_inbound_auth)
+                        } else {
+                            "$LOCALHOST4:${systemProxy.mixedPort}"
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Switch(
+                    checked = systemProxy.enabled && !systemProxy.hasInboundAuth,
+                    onCheckedChange = setEnabled,
+                    enabled = !systemProxy.hasInboundAuth,
                 )
             }
-            Switch(
-                checked = systemProxy.enabled && !systemProxy.hasInboundAuth,
-                onCheckedChange = setEnabled,
-                enabled = !systemProxy.hasInboundAuth,
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
             )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.tun_mode),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = if (systemProxy.serviceMode == Key.MODE_VPN) {
+                            stringResource(Res.string.tun_mode_summary)
+                        } else {
+                            stringResource(Res.string.service_mode_proxy)
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Switch(
+                    checked = systemProxy.serviceMode == Key.MODE_VPN,
+                    onCheckedChange = { isVpn ->
+                        setServiceMode(if (isVpn) Key.MODE_VPN else Key.MODE_PROXY)
+                    },
+                )
+            }
         }
     }
 }

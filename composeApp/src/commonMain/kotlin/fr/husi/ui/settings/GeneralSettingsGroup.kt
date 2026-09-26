@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import fr.husi.DEFAULT_APP_LANGUAGE
 import fr.husi.Key
 import fr.husi.bg.BackendState
 import fr.husi.compose.IconMaskColors
@@ -91,11 +92,14 @@ import fr.husi.resources.show_direct_speed_sum
 import fr.husi.resources.shutter_speed
 import fr.husi.resources.speed
 import fr.husi.resources.speed_interval
+import fr.husi.resources.texture
 import fr.husi.resources.theme
 import fr.husi.resources.traffic
 import fr.husi.resources.transgender
 import fr.husi.resources.translate
 import fr.husi.resources.wb_sunny
+import fr.husi.resources.window_frosted_glass_summary
+import fr.husi.resources.window_frosted_glass_title
 import fr.husi.ui.AppLanguage
 import fr.husi.ui.AutoConnectPreference
 import fr.husi.ui.MeteredNetworkPreference
@@ -271,15 +275,31 @@ internal fun GeneralSettingsGroup(
         valueToText = { AnnotatedString(stringResource(nightString(it))) },
     )
 
+    if (!PlatformInfo.isAndroid) {
+        val windowFrostedGlass by DataStore.windowFrostedGlass.collectAsStateWithLifecycle()
+        SwitchPreference(
+            value = windowFrostedGlass,
+            onValueChange = { DataStore.windowFrostedGlass.setBlocking(it) },
+            title = { Text(stringResource(Res.string.window_frosted_glass_title)) },
+            summary = { Text(stringResource(Res.string.window_frosted_glass_summary)) },
+            icon = {
+                MaskedIcon(
+                    Res.drawable.texture,
+                    color = IconMaskColors.IconCyan,
+                )
+            },
+        )
+    }
+
     fun getLanguageDisplayName(tag: String): String =
         AppLanguage.fromTag(tag)?.displayName ?: runBlocking {
             resolveRepository().getString(Res.string.language_system_default)
         }
 
     val languageValues = AppLanguage.entries.map { it.tag }
-    val languageController = rememberAppLanguageController(defaultTag = "")
+    val languageController = rememberAppLanguageController(defaultTag = DEFAULT_APP_LANGUAGE)
     val appLanguage by languageController.flow.collectAsStateWithLifecycle(languageController.value)
-    val selectedLanguage = if (appLanguage in languageValues) appLanguage else ""
+    val selectedLanguage = if (appLanguage in languageValues) appLanguage else DEFAULT_APP_LANGUAGE
     ListPreference(
         value = selectedLanguage,
         onValueChange = { languageController.value = it },
@@ -304,6 +324,9 @@ internal fun GeneralSettingsGroup(
     ListPreference(
         value = serviceModeValue,
         onValueChange = { mode ->
+            if (mode == Key.MODE_VPN && DataStore.systemProxy.getBlocking()) {
+                DataStore.systemProxy.setBlocking(false)
+            }
             DataStore.serviceMode.setBlocking(mode)
             if (serviceStatus.state.canStop) {
                 resolveRepository().reloadService()

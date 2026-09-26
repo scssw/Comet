@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.content.res.Configuration
 import android.os.Build
 import android.os.StrictMode
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import fr.husi.bg.AppChangeReceiver
 import fr.husi.bg.DefaultNetworkMonitor
 import fr.husi.bg.RouteAssetUpdater
@@ -67,6 +69,13 @@ class Application : Application(),
             // The component state may drift from the preference, e.g. after a backup restore.
             val hidden = DataStore.hideLauncherIcon.get()
             if (LauncherIcon.hidden != hidden) LauncherIcon.hidden = hidden
+
+            if (AppCompatDelegate.getApplicationLocales().isEmpty && DataStore.appLanguage.getOrNull() == null) {
+                val defaultLang = DataStore.appLanguage.get()
+                if (defaultLang.isNotBlank()) {
+                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(defaultLang))
+                }
+            }
         }
 
         if (isMainProcess || isBgProcess) {

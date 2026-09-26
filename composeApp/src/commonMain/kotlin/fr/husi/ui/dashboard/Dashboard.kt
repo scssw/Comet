@@ -539,6 +539,7 @@ fun DashboardScreen(
                         contentPadding = pageContentPadding,
                         selectClashMode = { dashboardViewModel.setClashMode(it) },
                         setSystemProxyEnabled = { dashboardViewModel.setSystemProxyEnabled(it) },
+                        setServiceMode = { dashboardViewModel.setServiceMode(it) },
                         showError = { message ->
                             snackbar.show(StringOrRes.Direct(message))
                         },

@@ -42,6 +42,8 @@ import fr.husi.fmt.shadowquic.buildShadowQUICConfig
 import fr.husi.fmt.shadowquic.toUri
 import fr.husi.fmt.shadowsocks.ShadowsocksBean
 import fr.husi.fmt.shadowsocks.toUri
+import fr.husi.fmt.shadowsocksr.ShadowsocksRBean
+import fr.husi.fmt.shadowsocksr.toUri
 import fr.husi.fmt.shadowtls.ShadowTLSBean
 import fr.husi.fmt.snell.SnellBean
 import fr.husi.fmt.socks.SOCKSBean
@@ -81,6 +83,7 @@ data class ProxyEntity(
     var socksBean: SOCKSBean? = null,
     var httpBean: HttpBean? = null,
     var ssBean: ShadowsocksBean? = null,
+    var ssrBean: ShadowsocksRBean? = null,
     var vmessBean: VMessBean? = null,
     var vlessBean: VLESSBean? = null,
     var trojanBean: TrojanBean? = null,
@@ -131,6 +134,7 @@ data class ProxyEntity(
         const val TYPE_OPENCONNECT = 29
         const val TYPE_OPENVPN = 30
         const val TYPE_MASQUE = 31
+        const val TYPE_SSR = 32
         const val TYPE_CONFIG = 998
         const val TYPE_NEKO = 999 // Deleted
 
@@ -212,6 +216,7 @@ data class ProxyEntity(
             TYPE_SOCKS -> socksBean = BeanConverters.socksDeserialize(byteArray)
             TYPE_HTTP -> httpBean = BeanConverters.httpDeserialize(byteArray)
             TYPE_SS -> ssBean = BeanConverters.shadowsocksDeserialize(byteArray)
+            TYPE_SSR -> ssrBean = BeanConverters.shadowsocksRDeserialize(byteArray)
             TYPE_SNELL -> snellBean = BeanConverters.snellDeserialize(byteArray)
             TYPE_VMESS -> vmessBean = BeanConverters.vmessDeserialize(byteArray)
             TYPE_VLESS -> vlessBean = BeanConverters.vlessDeserialize(byteArray)
@@ -254,6 +259,7 @@ data class ProxyEntity(
             TYPE_SOCKS -> socksBean
             TYPE_HTTP -> httpBean
             TYPE_SS -> ssBean
+            TYPE_SSR -> ssrBean
             TYPE_SNELL -> snellBean
             TYPE_VMESS -> vmessBean
             TYPE_VLESS -> vlessBean
@@ -307,6 +313,7 @@ data class ProxyEntity(
             is SOCKSBean -> toUri()
             is HttpBean -> toUri()
             is ShadowsocksBean -> toUri()
+            is ShadowsocksRBean -> toUri()
             is VMessBean -> toUriVMessVLESSTrojan()
             is VLESSBean -> toUriVMessVLESSTrojan()
             is TrojanBean -> toUriVMessVLESSTrojan()
@@ -419,6 +426,7 @@ data class ProxyEntity(
         socksBean = null
         httpBean = null
         ssBean = null
+        ssrBean = null
         vmessBean = null
         vlessBean = null
         trojanBean = null
@@ -456,6 +464,11 @@ data class ProxyEntity(
             is ShadowsocksBean -> {
                 type = TYPE_SS
                 ssBean = bean
+            }
+
+            is ShadowsocksRBean -> {
+                type = TYPE_SSR
+                ssrBean = bean
             }
 
             is SnellBean -> {
@@ -593,6 +606,9 @@ data class ProxyEntity(
 
         @Query("SELECT  MAX(userOrder) + 1 FROM proxy_entities WHERE groupId = :groupId")
         suspend fun nextOrder(groupId: Long): Long?
+
+        @Query("UPDATE proxy_entities SET userOrder = userOrder + :offset WHERE groupId = :groupId")
+        suspend fun shiftOrder(groupId: Long, offset: Long)
 
         @Query("SELECT * FROM proxy_entities WHERE id = :proxyId")
         suspend fun getById(proxyId: Long): ProxyEntity?

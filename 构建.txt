@@ -1,0 +1,222 @@
+================================================================================
+  Comet 客户端全平台构建指南 (Windows PowerShell)
+================================================================================
+
+本文档整理了在 Windows PowerShell 环境下从源码构建 Comet 安卓端 (arm64-v8a)
+与 Windows 桌面端 (amd64 / x86_64) 的完整命令与步骤。
+
+--------------------------------------------------------------------------------
+一、基础编译环境要求与路径参考
+--------------------------------------------------------------------------------
+1. Java JDK:
+   - JDK 17 或 JDK 21 (例如 D:\jdk17 或 C:\Program Files\Java\jdk-21)
+   - 需配置 $env:JAVA_HOME
+
+2. Android SDK & NDK (用于 Android 端构建):
+   - Android SDK (例如 C:\Users\ADMIN\AppData\Local\Android\Sdk)
+   - NDK 版本: 29.0.14206865 (例如 $env:ANDROID_HOME\ndk\29.0.14206865)
+
+3. Go 语言环境:
+   - Go 1.22+ (支持 -checklinkname=0)，例如 Go 1.24/1.26
+   - anja 绑定工具: go install github.com/xchacha20-poly1305/anja/cmd/anja@latest
+     (生成二进制位于 $HOME/go/bin/anja.exe)
+
+4. Zig 编译器 (用于 Windows 端构建):
+   - Zig 0.16.0 (例如安装于 D:\tools\zig\zig.exe)
+
+5. NSIS 打包工具 (用于 Windows 安装包生成):
+   - NSIS 3.12+ (例如 C:\Program Files (x86)\NSIS\makensis.exe)
+
+6. Python 3:
+   - Python 3.10+ (例如 C:\Python312\python.exe)
+
+7. Git 与 Git Bash:
+   - C:\Program Files\Git\bin\bash.exe
+
+--------------------------------------------------------------------------------
+二、全局通用前置：生成规则集资产 (GeoIP / GeoSite)
+--------------------------------------------------------------------------------
+在首次构建任何平台之前，需生成 sing-box 所需的 geoip / geosite 资源文件：
+
+# PowerShell:
+$env:GOTOOLCHAIN = "go1.26.0+auto"
+Push-Location "libcore/cmd/ruleset_generate"
+go run . -geoip="20260912" -geosite="20260922112956" -so="geosite.tar.zst" -io="geoip.tar.zst"
+Pop-Location
+
+$assetsDir = "composeApp/src/commonMain/composeResources/files/sing-box"
+if (!(Test-Path $assetsDir)) { New-Item -ItemType Directory -Force -Path $assetsDir }
+Copy-Item "libcore/cmd/ruleset_generate/geoip.tar.zst" $assetsDir -Force
+Copy-Item "libcore/cmd/ruleset_generate/geosite.tar.zst" $assetsDir -Force
+[IO.File]::WriteAllText("$assetsDir/geoip.version.txt", "20260912")
+[IO.File]::WriteAllText("$assetsDir/geosite.version.txt", "20260922112956")
+
+--------------------------------------------------------------------------------
+三、构建安卓端软件 (Android arm64-v8a APK)
+--------------------------------------------------------------------------------
+步骤 1：编译 Go 核心 Android 绑定库 (libcore.aar)
+
+# PowerShell:
+$env:GOTOOLCHAIN = "go1.26.0+auto"
+$env:PATH = "$HOME\go\bin;" + $env:PATH
+$env:ANDROID_HOME = "C:\Users\ADMIN\AppData\Local\Android\Sdk"
+$env:ANDROID_NDK_HOME = "$env:ANDROID_HOME\ndk\29.0.14206865"
+$env:NDK = $env:ANDROID_NDK_HOME
+$env:CGO_ENABLED = "1"
+
+Push-Location "libcore"
+$box_version = (go list -m -f '{{.Version}}' github.com/sagernet/sing-box)
+$anja_ldflags = "-X github.com/sagernet/sing-box/constant.Version=$box_version -X libcore.Version=2.2.0-alpha.1 -s -w -buildid= -checklinkname=0"
+$tags = "with_quic,with_wireguard,with_openconnect,with_openvpn,with_utls,with_naive_outbound,badlinkname,tfogo_checklinkname0"
+
+$anjaArgs = @(
+    "bind",
+    "-target=android/arm64",
+    "-androidapi", "23",
+    "-v",
+    "-trimpath",
+    "-buildvcs=false",
+    "-javapkg=fr.husi",
+    "-ldflags=$anja_ldflags",
+    "-tags=$tags",
+    "-o", "libcore.aar",
+    "."
+)
+& "$HOME\go\bin\anja.exe" @anjaArgs
+Pop-Location
+
+# 复制 libcore.aar 到 composeApp 依赖库目录
+if (!(Test-Path "composeApp\libs")) { New-Item -ItemType Directory -Path "composeApp\libs" }
+Copy-Item "libcore\libcore.aar" "composeApp\libs\libcore.aar" -Force
+
+步骤 2：生成签名密钥 (若已有 release.keystore 可跳过)
+keytool -genkeypair -v -keystore release.keystore -alias comet -keyalg RSA -keysize 2048 -validity 10000 -storepass comet123 -keypass comet123 -dname "CN=Comet, OU=Comet, O=Comet, L=Comet, ST=Comet, C=CN"
+
+步骤 3：编译 Android Release APK
+$env:BUILD_PLUGIN = "none"
+.\gradlew.bat :androidApp:assembleFossRelease
+
+# 复制产物至根目录
+Copy-Item "androidApp\build\outputs\apk\foss\release\Comet-2.2.0-alpha.1-arm64-v8a.apk" ".\Comet-arm64-v8a.apk" -Force
+
+【安卓一键打包脚本】：
+根目录已提供 `build_android_apk.bat`，双击或在终端中运行即可全自动完成依赖检查、编译及自动输出：
+  build_android_apk.bat
+
+【安卓构建产物】：
+- 根目录: Comet-arm64-v8a.apk (约 29.6 MB)
+
+
+--------------------------------------------------------------------------------
+四、构建 Windows 桌面端软件 (x86_64 / amd64)
+--------------------------------------------------------------------------------
+Windows 端包含 4 个核心构件：
+1. Comet.exe: 原生 Zig 启动器 (内嵌应用多尺寸图标)
+2. husi-core.exe: 核心宿主 Shim (Zig 编写)
+3. husicore.dll 与 libcore-desktop-windows-amd64.jar: Go 核心 DLL 与 Java 绑定
+4. fr.husi.jar: Compose Desktop UI 主程序 UberJar
+
+步骤 1：编译原生启动器 Launcher (Comet.exe)
+
+# PowerShell:
+$env:PATH = "D:\tools\zig;" + $env:PATH
+Push-Location "launcher"
+zig build -Doptimize=ReleaseSmall -Dtarget=x86_64-windows
+Pop-Location
+# 编译产物在: launcher\zig-out\bin\launcher-windows-x86_64.exe
+
+步骤 2：编译核心宿主 Shim (husi-core.exe)
+
+# PowerShell:
+$env:PATH = "D:\tools\zig;" + $env:PATH
+Push-Location "libcore\shim"
+zig build -Doptimize=ReleaseSmall -Dtarget=x86_64-windows
+Pop-Location
+if (!(Test-Path "libcore\build\windows_amd64")) { New-Item -ItemType Directory -Force -Path "libcore\build\windows_amd64" }
+Copy-Item "libcore\shim\zig-out\bin\husi-core-windows-x86_64.exe" "libcore\build\windows_amd64\husi-core.exe" -Force
+
+步骤 3：编译 Go 核心动态库与 Java 绑定包 (husicore.dll & libcore-desktop-windows-amd64.jar)
+
+# PowerShell:
+$env:GOTOOLCHAIN = "go1.26.0+auto"
+$env:PATH = "D:\tools\zig;$HOME\go\bin;" + $env:PATH
+$env:CC = "zig cc -target x86_64-windows-gnu"
+$env:CXX = "zig c++ -target x86_64-windows-gnu"
+$env:CGO_CFLAGS = "-O2 -fno-sanitize=undefined -fno-sanitize=integer"
+$env:CGO_CXXFLAGS = $env:CGO_CFLAGS
+$env:CGO_ENABLED = "1"
+$env:_JAVA_OPTIONS = "-Dfile.encoding=UTF-8 -Dsun.java2d.d3d=false"
+$env:JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
+
+Push-Location "libcore"
+$box_version = (go list -m -f '{{.Version}}' github.com/sagernet/sing-box)
+$anja_ldflags = "-X github.com/sagernet/sing-box/constant.Version=$box_version -X libcore.Version=2.2.0-alpha.1 -s -w -buildid= -checklinkname=0"
+$tags = "with_quic,with_wireguard,with_openconnect,with_openvpn,with_utls,with_naive_outbound,badlinkname,tfogo_checklinkname0,with_purego"
+
+$natives_staging = "build\natives-out"
+$natives_subdir = "windows-amd64"
+if (Test-Path "$natives_staging\$natives_subdir") { Remove-Item -Recurse -Force "$natives_staging\$natives_subdir" }
+if (!(Test-Path "$natives_staging")) { New-Item -ItemType Directory -Force -Path "$natives_staging" }
+
+$anjaArgs = @(
+    "bind",
+    "-target=jvm",
+    "-desktoptargets", "windows/amd64",
+    "-libname=husicore",
+    "-linkonly=github.com/xchacha20-poly1305/husi/libcore/v2/coreentry",
+    "-nativesout", "$natives_staging",
+    "-jniinclude=D:\jdk17\include",
+    "-v",
+    "-trimpath",
+    "-buildvcs=false",
+    "-javapkg=fr.husi",
+    "-ldflags=$anja_ldflags",
+    "-tags=$tags",
+    "-o", "libcore-desktop-windows-amd64.jar",
+    "."
+)
+& "$HOME\go\bin\anja.exe" @anjaArgs
+
+# 部署产物
+Copy-Item "libcore-desktop-windows-amd64.jar" "..\composeApp\libs\libcore-desktop-windows-amd64.jar" -Force
+Copy-Item "build\natives-out\windows-amd64\husicore.dll" "build\windows_amd64\husicore.dll" -Force
+$cronet_dir = (go list -m -f '{{.Dir}}' github.com/sagernet/cronet-go/lib/windows_amd64)
+if (Test-Path "$cronet_dir\libcronet.dll") { Copy-Item "$cronet_dir\libcronet.dll" "build\windows_amd64\libcronet.dll" -Force }
+Pop-Location
+
+步骤 4：编译 Compose Desktop 主程序 (UberJar)
+
+# PowerShell:
+$env:BUILD_PLUGIN = "none"
+$env:_JAVA_OPTIONS = "-Dfile.encoding=UTF-8 -Dsun.java2d.d3d=false"
+.\gradlew.bat -p composeApp packageReleaseUberJarForCurrentOS -PdesktopTarget=windows/amd64
+# 产物生成于: composeApp\build\compose\jars\fr.husi-windows-x64-2.2.0-alpha.1.jar
+
+步骤 5：最终打包封装 (生成 Zip 绿色包与 NSIS 安装程序)
+需使用 Git Bash 执行 release/windows/package.sh 脚本，同时链接定制嵌入式 JBR 21 运行时：
+
+# PowerShell:
+$env:PATH = "C:\Program Files (x86)\NSIS;D:\work3\comet\build\jbr\windows_amd64\bin;D:\tools\zig;C:\Python312;" + $env:PATH
+& "C:\Program Files\Git\bin\bash.exe" release/windows/package.sh --target windows/amd64 --no-sign --jbr-jmods "build/jbr/windows_amd64/jmods"
+
+# 将输出的软件包复制到根目录方便分发
+Copy-Item -Path "composeApp\build\compose\packages\windows\Comet-*" -Destination ".\" -Force
+
+--------------------------------------------------------------------------------
+五、Windows 端一键打包脚本 (build_windows_installer.bat)
+--------------------------------------------------------------------------------
+根目录已提供 `build_windows_installer.bat`，双击或在终端中执行即可自动完成环境检测、编译原生启动器、编译 UberJar、生成带 JBR 的安装程序：
+
+- 完整一键构建：
+  build_windows_installer.bat
+
+- 快速打包 (使用已有 UberJar 跳过 Gradle 编译)：
+  build_windows_installer.bat --quick
+
+【Windows 构建产物】：
+- Comet-2.2.0-alpha.1-windows-amd64-jbr-installer.exe (约 97.8 MB，集成 JBR 21，免安装 Java，推荐)
+- Comet-2.2.0-alpha.1-windows-amd64-jbr.zip           (约 105.5 MB，免安装绿色便携包，解压即用)
+- Comet-2.2.0-alpha.1-windows-amd64-installer.exe      (约 56.0 MB，系统需自行安装 Java 17+)
+- Comet-2.2.0-alpha.1-windows-amd64.zip                (约 55.9 MB，轻量便携包，系统需自行安装 Java 17+)
+================================================================================
+

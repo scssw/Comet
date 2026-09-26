@@ -40,6 +40,8 @@
     <!-- misc -->
     <string name="service_mode">執行模式</string>
     <string name="service_mode_proxy">僅代理</string>
+    <string name="tun_mode">網卡模式</string>
+    <string name="tun_mode_summary">透過虛擬網卡接管全部網路流量 (VPN / TUN)</string>
     <string name="port_proxy">代理連接埠</string>
     <string name="port_local_dns">本地 DNS 連接埠</string>
     <string name="allow_access">允許來自區域網路的連線</string>
@@ -195,7 +197,7 @@
     <string name="group_duplicate">重複：\n%1$s</string>
     <string name="group_diff">差異（%1$s）</string>
     <string name="tile_title">切換器</string>
-    <string name="group_default">未分組</string>
+    <string name="group_default">Today</string>
     <string name="version_x">版本 (%1$s)</string>
     <string name="extra_headers">額外標頭</string>
     <string name="config_type">配置類型</string>
@@ -284,6 +286,8 @@
         <item quantity="other">%1$d 行</item>
     </plurals>
     <string name="night_mode">夜間模式</string>
+    <string name="window_frosted_glass_title">iOS 27 玻璃磨砂效果</string>
+    <string name="window_frosted_glass_summary">整個視窗背景半透明磨砂風格</string>
     <string name="follow_system">跟隨系統</string>
     <string name="enable">啟用</string>
     <string name="disable">停用</string>
@@ -432,7 +436,7 @@
     <string name="backup_summary">如果路由規則不與配置一起備份，則自定義出站將丟失。</string>
     <string name="backup_not_file">不是一個備份文件，預計 .json，但 %1$s</string>
     <string name="packet_encoding">包編碼</string>
-    <string name="app_name">虎兕</string>
+    <string name="app_name">Comet</string>
     <string name="is_outbound_only">設定的 JSON 是出站</string>
     <string name="save">儲存</string>
     <string name="show_group_in_notification">在通知中顯示組名</string>

@@ -34,7 +34,7 @@ resolve_signing() {
     fi
     if [[ "$SIGNING_ENABLED" -eq 0 ]]; then
         log "Code signing disabled: packages will be unsigned."
-        return
+        return 0
     fi
 
     SIGNING_P12="${WINDOWS_SIGNING_P12:-}"
@@ -111,11 +111,15 @@ sign_payloads() {
     local path
 
     if [[ "$SIGNING_ENABLED" -eq 0 ]]; then
-        return
+        return 0
     fi
 
     mkdir -p "$staging"
-    for variable in INPUT_LAUNCHER_BIN INPUT_CORE_BIN INPUT_CORE_LIB; do
+    local -a variables=(INPUT_LAUNCHER_BIN INPUT_CORE_BIN INPUT_CORE_LIB)
+    if [[ -n "${INPUT_CRONET_LIB:-}" && -f "$INPUT_CRONET_LIB" ]]; then
+        variables+=(INPUT_CRONET_LIB)
+    fi
+    for variable in "${variables[@]}"; do
         path="$staging/$(basename "${!variable}")"
         cp "${!variable}" "$path"
         sign_pe "$path"

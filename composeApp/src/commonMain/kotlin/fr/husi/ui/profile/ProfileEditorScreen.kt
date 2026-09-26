@@ -185,6 +185,13 @@ fun ProfileEditorScreen(
             onOpenSIP003Editor = onOpenSIP003Editor,
         )
 
+        ProxyEntity.TYPE_SSR -> ShadowsocksRSettingsScreen(
+            profileId = profileId,
+            isSubscription = isSubscription,
+            onResult = onResult,
+            onOpenConfigEditor = onOpenConfigEditor,
+        )
+
         ProxyEntity.TYPE_SNELL -> SnellSettingsScreen(
             profileId = profileId,
             isSubscription = isSubscription,

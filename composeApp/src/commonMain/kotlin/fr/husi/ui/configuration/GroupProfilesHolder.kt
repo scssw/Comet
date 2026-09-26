@@ -13,7 +13,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import fr.husi.resources.vpn_key
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -113,6 +119,7 @@ import fr.husi.resources.share
 import fr.husi.resources.share_qr_nfc
 import fr.husi.resources.standard
 import fr.husi.resources.traffic
+import fr.husi.resources.transform
 import fr.husi.resources.unavailable
 import fr.husi.resources.warning
 import fr.husi.results.LocalResultEventBus
@@ -487,65 +494,192 @@ private fun DraggableSwipeableItemScope<ProfileItem>.ProxyCard(
         ValidateResult.Secure.Continue
     }
 
+    val isDarkMode = fr.husi.compose.theme.LocalAppDarkMode.current
+    val (protoBrush, protoIconColor) = remember(entity.type) {
+        fr.husi.compose.theme.CosmicAurora.protocolColors(entity.type)
+    }
+    val protoIconRes = when (entity.type) {
+        ProxyEntity.TYPE_NAIVE, ProxyEntity.TYPE_HTTP -> Res.drawable.send
+        ProxyEntity.TYPE_VLESS, ProxyEntity.TYPE_VMESS, ProxyEntity.TYPE_TROJAN -> Res.drawable.vpn_key
+        else -> Res.drawable.transform
+    }
+
+    val cardShape = RoundedCornerShape(18.dp)
     OutlinedCard(
         onClick = select,
-        modifier = modifier,
-        elevation = CardDefaults.elevatedCardElevation(),
+        modifier = modifier.then(
+            if (profile.isSelected) {
+                Modifier.shadow(
+                    elevation = 8.dp,
+                    shape = cardShape,
+                    spotColor = Color(0xFFC084FC).copy(alpha = 0.45f),
+                    ambientColor = Color(0xFF7C4DFF).copy(alpha = 0.25f),
+                )
+            } else {
+                Modifier.shadow(
+                    elevation = 2.dp,
+                    shape = cardShape,
+                    spotColor = Color(0x10000000),
+                )
+            }
+        ),
+        shape = cardShape,
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (isDarkMode) {
+                Color(0xFF1E2135).copy(alpha = 0.85f)
+            } else {
+                Color(0xFFFFFFFF).copy(alpha = 0.88f)
+            },
+        ),
         border = if (profile.isSelected) {
-            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            BorderStroke(1.5.dp, fr.husi.compose.theme.CosmicAurora.ActiveCardBorderGradient)
         } else {
-            CardDefaults.outlinedCardBorder()
+            BorderStroke(
+                1.dp,
+                if (isDarkMode) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.65f),
+            )
         },
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = vectorResource(Res.drawable.drag_indicator),
                 contentDescription = "Drag to reorder",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .size(40.dp)
-                    .padding(8.dp)
+                    .size(36.dp)
+                    .padding(6.dp)
                     .dragDropModifier(),
             )
+
+            // 左侧协议专属流光渐变方块徽章
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(protoBrush),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = vectorResource(protoIconRes),
+                    contentDescription = null,
+                    tint = protoIconColor,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
 
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    ),
+                    color = if (isDarkMode) Color(0xFFF8FAFC) else Color(0xFF1E1B4B),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 0.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
+                        text = entity.displayType(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B),
+                    )
+                    if (address != null) {
+                        Text(
+                            text = "· $address",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    val isConnectedNode = profile.isSelected
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isConnectedNode) Color(0xFF10B981)
+                                else if (entity.status == ProxyEntity.STATUS_AVAILABLE) colorForUrlTestDelay(entity.ping)
+                                else Color(0xFF94A3B8),
+                            ),
+                    )
+                    val displayStateText = when {
+                        isConnectedNode -> "已连接"
+                        statusText.isNotBlank() -> statusText
+                        else -> "未连接"
+                    }
+                    Text(
+                        text = displayStateText,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = if (isConnectedNode) Color(0xFF10B981) else statusColor,
+                            fontWeight = if (isConnectedNode) androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Normal,
+                        ),
+                    )
+                }
+            }
+
+            if (hasTraffic && trafficStatistic) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier.padding(end = 6.dp),
+                ) {
+                    Text(
+                        text = "↑ ${Libcore.formatBytes(entity.tx)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B),
+                    )
+                    Text(
+                        text = "↓ ${Libcore.formatBytes(entity.rx)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B),
+                    )
+                }
+            }
+
+            if (showActions) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    SimpleIconButton(
+                        imageVector = vectorResource(Res.drawable.edit),
+                        contentDescription = stringResource(Res.string.edit),
+                        modifier = Modifier.size(36.dp),
+                        onClick = edit,
                     )
 
-                    if (showActions) {
-                        SimpleIconButton(
-                            imageVector = vectorResource(Res.drawable.edit),
-                            contentDescription = stringResource(Res.string.edit),
-                            modifier = Modifier.size(40.dp),
-                            onClick = edit,
-                        )
-
-                        val shareIcon: DrawableResource
-                        val shareBackground: Color
-                        val shareTint: Color
-                        when (validateResult) {
-                            is ValidateResult.Insecure -> {
-                                shareIcon = Res.drawable.warning
-                                shareBackground = Color.Red
-                                shareTint = Color.White
-                            }
+                    val shareIcon: DrawableResource
+                    val shareBackground: Color
+                    val shareTint: Color
+                    when (validateResult) {
+                        is ValidateResult.Insecure -> {
+                            shareIcon = Res.drawable.warning
+                            shareBackground = Color.Red
+                            shareTint = Color.White
+                        }
 
                             is ValidateResult.Deprecated -> {
                                 shareIcon = Res.drawable.warning
@@ -819,68 +953,13 @@ private fun DraggableSwipeableItemScope<ProfileItem>.ProxyCard(
                         SimpleIconButton(
                             imageVector = vectorResource(Res.drawable.delete),
                             contentDescription = stringResource(Res.string.delete),
-                            modifier = Modifier.size(40.dp),
+                            modifier = Modifier.size(36.dp),
                             onClick = delete,
-                        )
-                    }
-                }
-
-                if (showMiddleRow) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 0.dp, end = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        address?.let {
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-
-                        if (hasTraffic && entity.status > ProxyEntity.STATUS_INITIAL) {
-                            trafficText?.let {
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 0.dp, end = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = entity.displayType(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.weight(1f),
-                    )
-
-                    if (statusText.isNotEmpty()) {
-                        val errorText = entity.error?.blankAsNull()
-                        Text(
-                            text = statusText,
-                            modifier = Modifier.clickable {
-                                errorText?.let(showErrorAlert)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = statusColor,
                         )
                     }
                 }
             }
         }
-    }
 
     if (showActions && showSecurityAlert) AlertDialog(
         onDismissRequest = {

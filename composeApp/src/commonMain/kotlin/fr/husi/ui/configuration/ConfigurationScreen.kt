@@ -2,9 +2,15 @@
 
 package fr.husi.ui.configuration
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -16,6 +22,10 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.AlertDialog
@@ -111,6 +121,7 @@ import fr.husi.resources.action_openconnect
 import fr.husi.resources.action_openvpn
 import fr.husi.resources.action_shadowquic
 import fr.husi.resources.action_shadowsocks
+import fr.husi.resources.action_shadowsocksr
 import fr.husi.resources.action_shadowtls
 import fr.husi.resources.action_snell
 import fr.husi.resources.action_socks
@@ -265,7 +276,7 @@ fun ConfigurationScreen(
             textFieldState = searchTextFieldState,
             searchBarState = searchBarState,
             onSearch = { focusManager.clearFocus() },
-            placeholder = { Text(stringResource(Res.string.search_go)) },
+            placeholder = { Text("搜索配置、节点、协议...") },
             leadingIcon = {
                 Icon(vectorResource(Res.drawable.search), null)
             },
@@ -308,6 +319,7 @@ fun ConfigurationScreen(
             Res.string.action_socks to ProxyEntity.TYPE_SOCKS,
             Res.string.action_http to ProxyEntity.TYPE_HTTP,
             Res.string.action_shadowsocks to ProxyEntity.TYPE_SS,
+            Res.string.action_shadowsocksr to ProxyEntity.TYPE_SSR,
             Res.string.action_vmess to ProxyEntity.TYPE_VMESS,
             Res.string.action_vless to ProxyEntity.TYPE_VLESS,
             Res.string.action_trojan to ProxyEntity.TYPE_TROJAN,
@@ -426,6 +438,31 @@ fun ConfigurationScreen(
                     hazeState = hazeState,
                     inputField = searchInputField,
                     navigationIcon = null,
+                    leadContent = if (!fr.husi.platform.PlatformInfo.isAndroid) {
+                        {
+                            val isDarkMode = fr.husi.compose.theme.LocalAppDarkMode.current
+                            Column(
+                                modifier = Modifier.padding(start = 4.dp, end = 16.dp),
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Text(
+                                    text = "配置",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 20.sp,
+                                    ),
+                                    color = if (isDarkMode) Color(0xFFF8FAFC) else Color(0xFF1E1B4B),
+                                )
+                                Text(
+                                    text = "管理你的代理与连接",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 11.sp,
+                                    ),
+                                    color = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                )
+                            }
+                        }
+                    } else null,
                     onSearchPillClick = {
                         scope.launch { searchBarState.animateToExpanded() }
                     },
@@ -625,33 +662,93 @@ fun ConfigurationScreen(
                     scrollBehavior = scrollBehavior,
                 )
 
-                if (hasGroups && uiState.groups.size > 1) PrimaryScrollableTabRow(
-                    selectedTabIndex = pagerState.currentPage.fastCoerceIn(
-                        0,
-                        uiState.groups.size - 1,
-                    ),
-                    edgePadding = 0.dp,
-                    containerColor = Color.Transparent,
-                ) {
-                    uiState.groups.forEachIndexed { index, group ->
-                        Tab(
-                            text = { Text(group.displayName()) },
-                            selected = pagerState.currentPage == index,
-                            onClick = {
-                                scope.launch {
-                                    if (pagerState.currentPage == index) {
-                                        vm.scrollToProxy(
-                                            group.id,
-                                            DataStore.selectedProxy.get(),
-                                            fallbackToTop = true,
-                                        )
-                                    } else {
-                                        pagerState.animateScrollToPage(index)
+                if (hasGroups && uiState.groups.size > 1) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        items(uiState.groups.size) { index ->
+                            val group = uiState.groups[index]
+                            val isSelected = pagerState.currentPage == index
+                            val childVm = vm.childViewModels[group.id]
+                            val count = childVm?.uiState?.value?.profiles?.size ?: 0
+                            val isDarkMode = fr.husi.compose.theme.LocalAppDarkMode.current
+
+                            Box(
+                                modifier = Modifier
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(17.dp))
+                                    .then(
+                                        if (isSelected) {
+                                            Modifier.background(fr.husi.compose.theme.CosmicAurora.ChipActiveGradient)
+                                        } else {
+                                            Modifier
+                                                .background(
+                                                    if (isDarkMode) Color(0xFF24273E).copy(alpha = 0.85f)
+                                                    else Color(0xFFFFFFFF).copy(alpha = 0.85f),
+                                                )
+                                                .border(
+                                                    1.dp,
+                                                    if (isDarkMode) Color.White.copy(alpha = 0.12f)
+                                                    else Color(0xFFE2E8F0).copy(alpha = 0.8f),
+                                                    RoundedCornerShape(17.dp),
+                                                )
+                                        }
+                                    )
+                                    .clickable {
+                                        scope.launch {
+                                            if (isSelected) {
+                                                vm.scrollToProxy(
+                                                    group.id,
+                                                    DataStore.selectedProxy.get(),
+                                                    fallbackToTop = true,
+                                                )
+                                            } else {
+                                                pagerState.animateScrollToPage(index)
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = group.displayName(),
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                        ),
+                                        color = if (isSelected) Color.White else if (isDarkMode) Color(0xFFE2E8F0) else Color(0xFF475569),
+                                    )
+                                    if (count > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(
+                                                    if (isSelected) Color.White.copy(alpha = 0.25f)
+                                                    else if (isDarkMode) Color.White.copy(alpha = 0.10f)
+                                                    else Color(0xFFF1F5F9),
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = count.toString(),
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.Medium,
+                                                ),
+                                                color = if (isSelected) Color.White else if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                            )
+                                        }
                                     }
                                 }
-                            },
-                            onLongClick = { onOpenGroupSettings(group.id) },
-                        )
+                            }
+                        }
                     }
                 }
             }

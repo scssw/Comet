@@ -4,6 +4,7 @@ const val HUSI_REPOSITORY = "xchacha20-poly1305/husi"
 
 const val CONNECTION_TEST_URL = "http://cp.cloudflare.com/"
 const val NETWORK_QUALITY_CONFIG_URL = "https://mensura.cdn-apple.com/api/v1/gm/config"
+const val DEFAULT_APP_LANGUAGE = "zh-Hans-CN"
 
 // Actually no "auto" domain strategy. It is legacy "let the core decide",
 // and every consumer strips it back to an empty strategy.
@@ -31,6 +32,7 @@ object Key {
     const val APP_EXPERT = "isExpert"
     const val APP_THEME = "appTheme"
     const val NIGHT_THEME = "nightTheme"
+    const val WINDOW_FROSTED_GLASS = "windowFrostedGlass"
     const val APP_LANGUAGE = "appLanguage"
     const val SERVICE_MODE = "serviceMode"
     const val MODE_VPN = "vpn"

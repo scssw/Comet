@@ -31,7 +31,7 @@ internal fun DesktopResourceEnvironmentFix(content: @Composable () -> Unit) {
 
     val default = LocalComposeEnvironment.current
     val appLanguageTag by DataStore.appLanguage.flow()
-        .collectAsState("")
+        .collectAsState(DataStore.appLanguage.getBlocking())
 
     CompositionLocalProvider(
         LocalComposeEnvironment provides object : ComposeEnvironment {

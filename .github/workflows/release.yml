@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag
-        required: true
+        description: 'Release tag (leave blank to use version in husi.properties)'
+        required: false
+        default: ''
         type: string
       no-publish:
         description: Build artifacts without publishing a GitHub Release
@@ -309,9 +310,17 @@ jobs:
         with:
           pattern: mapping-*
           path: mapping
+      - name: Resolve release tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "RELEASE_TAG=${{ inputs.tag }}" >> "$GITHUB_ENV"
+          elif [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "RELEASE_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          else
+            version="$(awk -F= '$1=="VERSION_NAME"{print $2; exit}' husi.properties)"
+            echo "RELEASE_TAG=v$version" >> "$GITHUB_ENV"
+          fi
       - name: Bundle R8 mappings
-        env:
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           cd mapping
           zip -9 -r -q "$GITHUB_WORKSPACE/release-artifacts/mapping-$RELEASE_TAG.zip" .
@@ -319,7 +328,6 @@ jobs:
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           mapfile -d '' files < <(find release-artifacts -type f -print0)
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then

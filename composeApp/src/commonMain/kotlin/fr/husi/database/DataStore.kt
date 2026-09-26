@@ -3,6 +3,7 @@ package fr.husi.database
 import fr.husi.BuildConfig
 import fr.husi.CONNECTION_TEST_URL
 import fr.husi.CertProvider
+import fr.husi.DEFAULT_APP_LANGUAGE
 import fr.husi.DEFAULT_HTTP_BYPASS
 import fr.husi.DOMAIN_STRATEGY_AUTO
 import fr.husi.GroupType
@@ -22,12 +23,14 @@ import fr.husi.database.preference.preferenceStoreScope
 import fr.husi.database.preference.string
 import fr.husi.database.preference.stringSet
 import fr.husi.libcore.Libcore
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import fr.husi.platform.PlatformInfo
 import fr.husi.repository.resolveRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.runBlocking
 
 object DataStore {
 
@@ -60,6 +63,28 @@ object DataStore {
                 configurationStore.putString(Key.TCP_KEEP_ALIVE_INTERVAL_0, "${seconds}s")
             }
             configurationStore.remove(keyTCPKeepAliveInterval)
+        }
+
+        if (!PlatformInfo.isAndroid) {
+            val keyMixedPort = Key.MIXED_PORT
+            val currentMixed = configurationStore.getString(keyMixedPort)
+            if (currentMixed == null || currentMixed == "2080") {
+                configurationStore.putString(keyMixedPort, "1080")
+            }
+            val keyWindowFrostedGlassMigrated = "windowFrostedGlass_default_enabled"
+            if (configurationStore.getString(keyWindowFrostedGlassMigrated) != "true") {
+                runBlocking {
+                    configurationStore.writeValue(booleanPreferencesKey(Key.WINDOW_FROSTED_GLASS), true)
+                }
+                configurationStore.putString(keyWindowFrostedGlassMigrated, "true")
+            }
+            val keyServiceModeDesktopMigrated = "serviceMode_desktop_proxy_default"
+            if (configurationStore.getString(keyServiceModeDesktopMigrated) != "true") {
+                if (configurationStore.getString(Key.SERVICE_MODE) == null || configurationStore.getString(Key.SERVICE_MODE) == Key.MODE_VPN) {
+                    configurationStore.putString(Key.SERVICE_MODE, Key.MODE_PROXY)
+                }
+                configurationStore.putString(keyServiceModeDesktopMigrated, "true")
+            }
         }
     }
 
@@ -108,9 +133,12 @@ object DataStore {
 
     val isExpert = configurationStore.boolean(Key.APP_EXPERT)
     val appTheme = configurationStore.int(Key.APP_THEME) { DEFAULT }
-    val nightTheme = configurationStore.int(Key.NIGHT_THEME)
-    val appLanguage = configurationStore.string(Key.APP_LANGUAGE)
-    val serviceMode = configurationStore.string(Key.SERVICE_MODE) { Key.MODE_VPN }
+    val nightTheme = configurationStore.int(Key.NIGHT_THEME) { 2 }
+    val windowFrostedGlass = configurationStore.boolean(Key.WINDOW_FROSTED_GLASS) { !PlatformInfo.isAndroid }
+    val appLanguage = configurationStore.string(Key.APP_LANGUAGE) { DEFAULT_APP_LANGUAGE }
+    val serviceMode = configurationStore.string(Key.SERVICE_MODE) {
+        if (PlatformInfo.isAndroid) Key.MODE_VPN else Key.MODE_PROXY
+    }
     val debugListen = configurationStore.string(Key.DEBUG_LISTEN)
     val networkStrategy = configurationStore.string(Key.NETWORK_STRATEGY)
     val anchorSSID = configurationStore.string(Key.ANCHOR_SSID)
@@ -186,10 +214,13 @@ object DataStore {
     val logMaxLine = configurationStore.int(Key.LOG_MAX_LINE) { 1024 }
     val acquireWakeLock = configurationStore.boolean(Key.ACQUIRE_WAKE_LOCK)
 
-    val mixedPort = configurationStore.port(Key.MIXED_PORT, 2080)
+    val mixedPort = configurationStore.port(Key.MIXED_PORT, if (PlatformInfo.isAndroid) 2080 else 1080)
     val localDNSPort = configurationStore.port(Key.LOCAL_DNS_PORT, 0)
 
     suspend fun initGlobal() {
+        if (!PlatformInfo.isAndroid && mixedPort.getOrNull() == 2080) {
+            mixedPort.set(1080)
+        }
         if (mixedPort.getOrNull() == null) {
             mixedPort.set(mixedPort.get())
         }

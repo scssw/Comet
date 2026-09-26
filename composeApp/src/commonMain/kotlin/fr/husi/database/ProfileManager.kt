@@ -35,13 +35,16 @@ object ProfileManager {
     private val defaultGroupMutex = Mutex()
     private val repository get() = resolveRepository()
 
-    suspend fun createProfile(groupId: Long, bean: AbstractBean): ProxyEntity {
+    suspend fun createProfile(groupId: Long, bean: AbstractBean, atTop: Boolean = false): ProxyEntity {
         bean.applyDefaultValues()
 
+        if (atTop) {
+            SagerDatabase.proxyDao.shiftOrder(groupId, 1)
+        }
         val profile = ProxyEntity(groupId = groupId).apply {
             id = 0
             putBean(bean)
-            userOrder = SagerDatabase.proxyDao.nextOrder(groupId) ?: 1
+            userOrder = if (atTop) 1 else (SagerDatabase.proxyDao.nextOrder(groupId) ?: 1)
         }
         profile.id = SagerDatabase.proxyDao.addProxy(profile)
         return profile
@@ -181,8 +184,10 @@ object ProfileManager {
                 for (c in walledCountry) {
                     val country = c.substringBefore(":")
                     val displayCountry = c.substringAfter(":")
-                    if (country == "cn") createRule(
+                    val isChina = country == "cn"
+                    if (isChina) createRule(
                         RuleEntity(
+                            enabled = true,
                             name = repository.getString(Res.string.route_play_store, displayCountry),
                             action = ACTION_ROUTE,
                             domains = "set+dns:geosite-google-play",
@@ -192,6 +197,7 @@ object ProfileManager {
                     )
                     createRule(
                         RuleEntity(
+                            enabled = isChina,
                             name = repository.getString(Res.string.route_bypass_domain, displayCountry),
                             action = ACTION_ROUTE,
                             domains = "set+dns:geosite-$country",
@@ -201,6 +207,7 @@ object ProfileManager {
                     )
                     createRule(
                         RuleEntity(
+                            enabled = isChina,
                             name = repository.getString(Res.string.route_bypass_ip, displayCountry),
                             action = ACTION_ROUTE,
                             ip = "set-dns:geoip-$country",
