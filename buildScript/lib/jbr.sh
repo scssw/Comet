@@ -32,7 +32,7 @@ usage() {
 Usage:
   $(basename "$0") <platform/arch>
 
-Supported targets: windows/amd64, windows/arm64
+Supported targets: windows/amd64, windows/arm64, darwin/arm64
 USAGE
 }
 
@@ -45,10 +45,19 @@ target="$1"
 platform="${target%%/*}"
 arch="${target#*/}"
 
-if [[ "$platform" != "windows" ]]; then
-    error "Unsupported platform '$platform'. Only Windows bundles a JetBrains Runtime today."
-    exit 1
-fi
+case "$platform" in
+    windows)
+        jbr_platform="windows"
+        ;;
+    darwin | macos)
+        platform="darwin"
+        jbr_platform="osx"
+        ;;
+    *)
+        error "Unsupported platform '$platform'. Only Windows and macOS bundle a JetBrains Runtime."
+        exit 1
+        ;;
+esac
 
 case "$arch" in
     amd64 | x86_64)
@@ -65,7 +74,7 @@ case "$arch" in
         ;;
 esac
 
-archive_name="jbrsdk-${JBR_VERSION}-${platform}-${jbr_arch}-b${JBR_BUILD}.tar.gz"
+archive_name="jbrsdk-${JBR_VERSION}-${jbr_platform}-${jbr_arch}-b${JBR_BUILD}.tar.gz"
 install_dir="$ROOT_DIR/build/jbr/${platform}_${arch}"
 jmods_dir="$install_dir/jmods"
 
@@ -85,6 +94,11 @@ if ! curl -sSfL "$JBR_BASE_URL/$archive_name" \
     rm -rf "$install_dir"
     error "Failed to fetch or unpack $archive_name"
     exit 1
+fi
+
+if [[ -d "$install_dir/Contents/Home/jmods" ]]; then
+    mv "$install_dir/Contents/Home/jmods" "$jmods_dir"
+    rm -rf "$install_dir/Contents"
 fi
 
 if [[ ! -d "$jmods_dir" ]]; then

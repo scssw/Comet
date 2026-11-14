@@ -9,6 +9,10 @@ DESKTOP_METADATA_FILE="$ROOT_DIR/release/desktop/package-metadata.sh"
 JAR_DIR_DEFAULT="$ROOT_DIR/composeApp/build/compose/jars"
 OUTPUT_DIR_DEFAULT="$ROOT_DIR/composeApp/build/compose/packages/macos"
 PREBUILT_ICON_DEFAULT="$ROOT_DIR/release/macos/desktop/icon.icns"
+JRE_MODULES_FILE="$ROOT_DIR/release/desktop/jre-modules.sh"
+if [[ -f "$JRE_MODULES_FILE" ]]; then
+    source "$JRE_MODULES_FILE"
+fi
 # Room needs a libsqliteJni for the target, and androidx sqlite-bundled has none for osx_x64.
 DARWIN_AMD64_SQLITE_ISSUE="https://issuetracker.google.com/issues/495864182"
 PACKAGE_NAME_PLACEHOLDER="__HUSI_PACKAGE_NAME__"
@@ -294,12 +298,24 @@ resolve_dmg_backend() {
     esac
 }
 
+resolve_jlink() {
+    if [[ -z "$JBR_JMODS_DIR" ]]; then
+        return 0
+    fi
+    if command -v jlink >/dev/null 2>&1; then
+        return 0
+    fi
+    error "Missing required tool: jlink. Install a JDK and put its bin directory on PATH."
+    exit 2
+}
+
 require_tools() {
     local -a tools=(awk sed grep find cp chmod ln ls mkdir mktemp date git sort head rm touch)
     local -a missing=()
     local tool
 
     resolve_python
+    resolve_jlink
 
     case "$DMG_BACKEND" in
         hdiutil)
@@ -482,6 +498,21 @@ render_info_plist_strings() {
         "$APP_DESCRIPTION_PLACEHOLDER" "$localized_description"
 }
 
+build_runtime() {
+    local runtime_dir="$1"
+
+    rm -rf "$runtime_dir"
+    mkdir -p "$(dirname "$runtime_dir")"
+    jlink \
+        --module-path "$JBR_JMODS_DIR" \
+        --add-modules "$DESKTOP_JRE_MODULES_COMMON" \
+        --strip-debug \
+        --no-man-pages \
+        --no-header-files \
+        --compress 2 \
+        --output "$runtime_dir"
+}
+
 prepare_app_bundle() {
     local bundle_root="$1"
     local contents_dir="$bundle_root/Contents"
@@ -508,6 +539,12 @@ prepare_app_bundle() {
     cp "$ROOT_DIR/release/linux/desktop/desktop-app-args.conf" "$macos_dir/desktop-app-args.conf.template"
     cp "$ICON_ICNS" "$resources_dir/$icon_name"
 
+    if [[ -n "$JBR_JMODS_DIR" ]]; then
+        local runtime_dir="$contents_dir/runtime"
+        log "Linking bundled Java runtime with jlink..."
+        build_runtime "$runtime_dir"
+    fi
+
     render_template \
         "$plist_template" \
         "$plist_file" \
@@ -523,6 +560,17 @@ prepare_app_bundle() {
     render_info_plist_strings "$resources_dir/en.lproj" "$APP_NAME" "$APP_DESCRIPTION"
     render_info_plist_strings "$resources_dir/zh_CN.lproj" "$APP_NAME_ZH_CN" "$APP_DESCRIPTION_ZH_CN"
     render_info_plist_strings "$resources_dir/zh_TW.lproj" "$APP_NAME_ZH_TW" "$APP_DESCRIPTION_ZH_TW"
+
+    if command -v codesign >/dev/null 2>&1; then
+        log "Ad-hoc signing binaries and app bundle with codesign..."
+        codesign --force --sign - "$macos_dir/$executable_name" 2>/dev/null || true
+        codesign --force --sign - "$macos_dir/husi-core" 2>/dev/null || true
+        codesign --force --sign - "$macos_dir/libhusicore.dylib" 2>/dev/null || true
+        if [[ -d "$contents_dir/runtime" ]]; then
+            find "$contents_dir/runtime" -type f \( -name "*.dylib" -o -name "*.so" -o -perm -0111 \) -exec codesign --force --sign - {} + 2>/dev/null || true
+        fi
+        codesign --force --deep --sign - "$bundle_root" 2>/dev/null || true
+    fi
 
     touch_path_tree "$bundle_root"
 }
@@ -596,6 +644,7 @@ INPUT_JAR=""
 INPUT_LAUNCHER_BIN=""
 INPUT_CORE_BIN=""
 INPUT_CORE_LIB=""
+JBR_JMODS_DIR="${JBR_JMODS:-}"
 OUTPUT_DIR="$OUTPUT_DIR_DEFAULT"
 CHECK_TOOLS=0
 HOST_OS=""
@@ -633,6 +682,11 @@ while [[ $# -gt 0 ]]; do
         -o|--output-dir)
             require_arg "$1" "${2:-}"
             OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --jbr-jmods)
+            require_arg "$1" "${2:-}"
+            JBR_JMODS_DIR="$2"
             shift 2
             ;;
         --check-tools)

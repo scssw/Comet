@@ -133,7 +133,11 @@ desktop_package_macos:
 	BUILD_PLUGIN=none ./gradlew -p composeApp packageReleaseUberJarForCurrentOS $(DESKTOP_TARGET_GRADLE_ARG)
 	$(MAKE) launcher
 	$(MAKE) core_desktop DESKTOP_TARGETS=$(if $(DESKTOP_TARGET),$(DESKTOP_TARGET),host)
-	./release/macos/package.sh $(DESKTOP_TARGET_SCRIPT_ARG)
+	jbr_jmods="$(JBR_JMODS)"; \
+	if [ -z "$$jbr_jmods" ]; then \
+		jbr_jmods="$$(./run lib jbr $(if $(DESKTOP_TARGET),$(DESKTOP_TARGET),darwin/arm64) | tail -n 1)" || exit $$?; \
+	fi; \
+	./release/macos/package.sh $(DESKTOP_TARGET_SCRIPT_ARG) --jbr-jmods "$$jbr_jmods"
 
 desktop_package_windows:
 	@if [ -z "$(DESKTOP_TARGET)" ]; then \
