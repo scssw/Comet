@@ -561,7 +561,14 @@ prepare_app_bundle() {
     render_info_plist_strings "$resources_dir/zh_CN.lproj" "$APP_NAME_ZH_CN" "$APP_DESCRIPTION_ZH_CN"
     render_info_plist_strings "$resources_dir/zh_TW.lproj" "$APP_NAME_ZH_TW" "$APP_DESCRIPTION_ZH_TW"
 
-    if command -v codesign >/dev/null 2>&1; then
+    chmod -R a+rX "$bundle_root"
+
+    if command -v rcodesign >/dev/null 2>&1; then
+        log "Ad-hoc signing app bundle with rcodesign..."
+        rcodesign sign "$bundle_root"
+        log "Verifying code signature with rcodesign..."
+        rcodesign verify "$bundle_root"
+    elif command -v codesign >/dev/null 2>&1; then
         log "Ad-hoc signing binaries and app bundle with codesign..."
         codesign --force --sign - "$macos_dir/$executable_name" 2>/dev/null || true
         codesign --force --sign - "$macos_dir/husi-core" 2>/dev/null || true
