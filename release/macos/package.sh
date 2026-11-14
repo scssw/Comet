@@ -535,8 +535,8 @@ prepare_app_bundle() {
     # Sidecar anja library next to husi-core (N7); UI sets anja.natives.dir to this dir.
     cp "$INPUT_CORE_LIB" "$macos_dir/libhusicore.dylib"
     chmod 755 "$macos_dir/libhusicore.dylib"
-    cp "$ROOT_DIR/release/linux/desktop/desktop-java-opts.conf" "$macos_dir/desktop-java-opts.conf.template"
-    cp "$ROOT_DIR/release/linux/desktop/desktop-app-args.conf" "$macos_dir/desktop-app-args.conf.template"
+    cp "$ROOT_DIR/release/linux/desktop/desktop-java-opts.conf" "$resources_dir/desktop-java-opts.conf.template"
+    cp "$ROOT_DIR/release/linux/desktop/desktop-app-args.conf" "$resources_dir/desktop-app-args.conf.template"
     cp "$ICON_ICNS" "$resources_dir/$icon_name"
 
     if [[ -n "$JBR_JMODS_DIR" ]]; then
@@ -566,8 +566,13 @@ prepare_app_bundle() {
     if command -v rcodesign >/dev/null 2>&1; then
         log "Ad-hoc signing app bundle with rcodesign..."
         rcodesign sign "$bundle_root"
-        log "Verifying code signature with rcodesign..."
-        rcodesign verify "$bundle_root"
+        log "Verifying code signatures with rcodesign..."
+        rcodesign verify "$macos_dir/$executable_name"
+        rcodesign verify "$macos_dir/husi-core"
+        rcodesign verify "$macos_dir/libhusicore.dylib"
+        if [[ -f "$contents_dir/runtime/bin/java" ]]; then
+            rcodesign verify "$contents_dir/runtime/bin/java"
+        fi
     elif command -v codesign >/dev/null 2>&1; then
         log "Ad-hoc signing binaries and app bundle with codesign..."
         codesign --force --sign - "$macos_dir/$executable_name" 2>/dev/null || true

@@ -439,8 +439,22 @@ pub fn main(init: std.process.Init) !u8 {
         return 1;
     };
 
-    const java_opts_template = try std.fmt.allocPrint(allocator, "{s}/desktop-java-opts.conf.template", .{runtime.launcher_dir});
-    const app_args_template = try std.fmt.allocPrint(allocator, "{s}/desktop-app-args.conf.template", .{runtime.launcher_dir});
+    const java_opts_template = blk: {
+        if (native_os == .macos) {
+            const res_candidate = try std.fmt.allocPrint(allocator, "{s}/Resources/desktop-java-opts.conf.template", .{runtime.app_root});
+            if (fileExists(io, res_candidate)) break :blk res_candidate;
+            allocator.free(res_candidate);
+        }
+        break :blk try std.fmt.allocPrint(allocator, "{s}/desktop-java-opts.conf.template", .{runtime.launcher_dir});
+    };
+    const app_args_template = blk: {
+        if (native_os == .macos) {
+            const res_candidate = try std.fmt.allocPrint(allocator, "{s}/Resources/desktop-app-args.conf.template", .{runtime.app_root});
+            if (fileExists(io, res_candidate)) break :blk res_candidate;
+            allocator.free(res_candidate);
+        }
+        break :blk try std.fmt.allocPrint(allocator, "{s}/desktop-app-args.conf.template", .{runtime.launcher_dir});
+    };
 
     const user_config = resolveUserConfigPaths(allocator, init.environ_map) catch |err| {
         std.debug.print("resolve_user_config_paths failed: {}\n", .{err});
