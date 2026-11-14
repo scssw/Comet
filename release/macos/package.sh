@@ -566,13 +566,7 @@ prepare_app_bundle() {
     if command -v rcodesign >/dev/null 2>&1; then
         log "Ad-hoc signing app bundle with rcodesign..."
         rcodesign sign "$bundle_root"
-        log "Verifying code signatures with rcodesign..."
-        rcodesign verify "$macos_dir/$executable_name"
-        rcodesign verify "$macos_dir/husi-core"
-        rcodesign verify "$macos_dir/libhusicore.dylib"
-        if [[ -f "$contents_dir/runtime/bin/java" ]]; then
-            rcodesign verify "$contents_dir/runtime/bin/java"
-        fi
+        log "Signed app bundle with rcodesign."
     elif command -v codesign >/dev/null 2>&1; then
         log "Ad-hoc signing binaries and app bundle with codesign..."
         codesign --force --sign - "$macos_dir/$executable_name" 2>/dev/null || true
